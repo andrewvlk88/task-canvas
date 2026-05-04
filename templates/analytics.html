@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Canvas Analytics</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { background-color: #000; color: #fff; font-family: Tahoma, sans-serif; }
+    .glass {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+    }
+  </style>
+</head>
+<body class="p-6">
+  <div class="max-w-6xl mx-auto">
+    <div class="flex justify-between items-center mb-6">
+      <h1 class="text-2xl font-bold text-cyan-400">📊 Kanban Analytics Dashboard</h1>
+      <a href="/" class="text-gray-400 hover:text-white underline">חזרה ללוח</a>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      <div class="glass p-4 text-center">
+        <h3 class="text-gray-400 text-sm">סה"כ משימות</h3>
+        <p class="text-3xl font-bold" id="total-tasks">-</p>
+      </div>
+      <div class="glass p-4 text-center">
+        <h3 class="text-gray-400 text-sm">הושלמו</h3>
+        <p class="text-3xl font-bold text-green-400" id="done-tasks">-</p>
+      </div>
+      <div class="glass p-4 text-center">
+        <h3 class="text-gray-400 text-sm">אחוז השלמה</h3>
+        <p class="text-3xl font-bold text-purple-400" id="completion-rate">-%</p>
+      </div>
+      <div class="glass p-4 text-center border border-red-500/30">
+        <h3 class="text-gray-400 text-sm">משימות תקועות (>24h)</h3>
+        <p class="text-3xl font-bold text-red-400" id="stale-tasks-count">-</p>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+      <div class="glass p-4">
+        <h2 class="text-lg mb-4 text-center">Velocity (משימות שטופלו לאחרונה)</h2>
+        <canvas id="velocityChart" height="200"></canvas>
+      </div>
+      <div class="glass p-4 flex flex-col items-center">
+        <h2 class="text-lg mb-4 text-center">התפלגות תגיות</h2>
+        <div class="w-full max-w-[250px]">
+          <canvas id="tagsChart" height="250"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="glass p-4">
+      <h2 class="text-lg mb-4 text-red-400 font-bold">🔥 Stale Tasks Heatmap (תקועות)</h2>
+      <table class="w-full text-right border-collapse">
+        <thead>
+          <tr class="border-b border-white/10 text-gray-400">
+            <th class="py-2 px-4">משימה</th>
+            <th class="py-2 px-4">עמודה</th>
+            <th class="py-2 px-4">זמן (שעות)</th>
+          </tr>
+        </thead>
+        <tbody id="stale-table-body">
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+
+  <script>
+    async function loadData() {
+      const res = await fetch('/api/analytics');
+      const data = await res.json();
+      
+      document.getElementById('total-tasks').innerText = data.total;
+      document.getElementById('done-tasks').innerText = data.done;
+      document.getElementById('completion-rate').innerText = data.completion_rate + '%';
+      document.getElementById('stale-tasks-count').innerText = data.stale.length;
+
+      // Velocity Chart
+      const vCtx = document.getElementById('velocityChart').getContext('2d');
+      new Chart(vCtx, {
+        type: 'line',
+        data: {
+          labels: data.velocity.map(v => v.date),
+          datasets: [{
+            label: 'פעילות יומית',
+            data: data.velocity.map(v => v.count),
+            borderColor: '#00f5ff',
+            backgroundColor: 'rgba(0, 245, 255, 0.1)',
+            fill: true,
+            tension: 0.4
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.1)' } },
+            x: { grid: { display: false } }
+          }
+        }
+      });
+
+      // Tags Pie Chart
+      const tCtx = document.getElementById('tagsChart').getContext('2d');
+      new Chart(tCtx, {
+        type: 'pie',
+        data: {
+          labels: data.tag_distribution.map(t => t.tag),
+          datasets: [{
+            data: data.tag_distribution.map(t => t.count),
+            backgroundColor: ['#00f5ff', '#bf5af2', '#ff453a', '#ffd60a'],
+            borderWidth: 0
+          }]
+        },
+        options: { responsive: true }
+      });
+
+      // Stale Table
+      const tbody = document.getElementById('stale-table-body');
+      tbody.innerHTML = data.stale.map(s => `
+        <tr class="border-b border-white/5 hover:bg-white/5">
+          <td class="py-2 px-4">${s.content}</td>
+          <td class="py-2 px-4 text-gray-400">${s.column}</td>
+          <td class="py-2 px-4 text-red-400 font-bold">${s.hours}h</td>
+        </tr>
+      `).join('');
+    }
+    loadData();
+  </script>
+</body>
+</html>

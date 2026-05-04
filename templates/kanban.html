@@ -1,0 +1,1201 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flow · משימות</title>
+  <style>
+    /* Use Tahoma as primary font */
+    * {
+      font-family: Tahoma, Geneva, sans-serif;
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --bg: #0f111a;
+      --panel: #161825;
+      --card: #1e2130;
+      --border: #272b3c;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --accent: #06b6d4; /* cyan */
+      --accent-2: #6366f1; /* indigo */
+      --success: #10b981;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+      --radius: 12px;
+      --radius-sm: 8px;
+      --transition: 0.2s ease;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      min-height: 100vh;
+      margin: 0;
+    }
+
+    /* ── Modern Header ── */
+    .site-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(180deg, rgba(22,24,37,0.95), rgba(15,17,26,0.98));
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+
+    .site-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .site-logo {
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .site-logo-sub {
+      font-size: 0.8rem;
+      font-weight: 400;
+      color: var(--muted);
+      letter-spacing: 0.03em;
+    }
+
+    .header-date {
+      font-size: 0.85rem;
+      color: var(--muted);
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .header-date::before {
+      content: '';
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--success);
+      box-shadow: 0 0 8px var(--success);
+      animation: pulse-dot 2s infinite;
+    }
+
+    @keyframes pulse-dot {
+      0%,100% { opacity: 0.4; }
+      50%     { opacity: 1; }
+    }
+
+    .header-nav {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .nav-link {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.82rem;
+      font-weight: 500;
+      color: var(--muted);
+      text-decoration: none;
+      padding: 8px 14px;
+      border-radius: 999px;
+      border: 1px solid transparent;
+      transition: all var(--transition);
+    }
+
+    .nav-link:hover {
+      color: var(--accent);
+      border-color: rgba(6,182,212,0.2);
+      background: rgba(6,182,212,0.06);
+    }
+
+    .nav-link.active {
+      color: var(--accent);
+      border-color: rgba(6,182,212,0.25);
+      background: rgba(6,182,212,0.08);
+    }
+
+    .nav-link svg {
+      width: 16px;
+      height: 16px;
+      opacity: 0.7;
+    }
+
+    .nav-link:hover svg { opacity: 1; }
+
+    /* ── Board container ── */
+    .board-wrapper {
+      padding: 20px;
+    }
+
+    board {
+      display: flex;
+      gap: 16px;
+      overflow-x: auto;
+      padding-bottom: 12px;
+    }
+
+    .column {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      min-width: 240px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .column-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 18px 10px;
+      font-weight: 600;
+      font-size: 0.85rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .column-count {
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: var(--muted);
+      background: var(--card);
+      padding: 3px 8px;
+      border-radius: 999px;
+      min-width: 24px;
+      text-align: center;
+    }
+
+    .card-list {
+      flex: 1;
+      padding: 0 12px 8px;
+      min-height: 80px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid transparent;
+      border-radius: var(--radius-sm);
+      margin-bottom: 10px;
+      padding: 14px 16px;
+      cursor: grab;
+      font-size: 0.9rem;
+      transition: var(--transition);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+      position: relative;
+      overflow: hidden;
+      user-select: none; /* drag target — no accidental selection */
+    }
+
+    .card-content {
+      user-select: text; /* allow text copy */
+      cursor: auto;
+    }
+
+    .card:hover {
+      border-color: var(--border);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+      transform: translateY(-2px);
+    }
+
+    .card.dragging {
+      opacity: 0.35;
+      transform: scale(0.96);
+    }
+
+    /* Priority dot */
+    .priority-dot {
+      position: absolute;
+      left: 8px;
+      top: 8px;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+    }
+    .priority-1 { background: var(--danger); }
+    .priority-2 { background: var(--warning); }
+    .priority-3 { background: #eab308; /* yellow */ }
+    .priority-4 { background: #10b981; /* green */ }
+    .priority-5 { background: #6b7280; /* gray */ }
+
+    .tag {
+      align-self: flex-start;
+      font-size: 0.7rem;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 999px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    .tag-עבודה { background: rgba(6,182,212,0.15); color: var(--accent); }
+    .tag-אישית { background: rgba(99,102,241,0.15); color: var(--accent-2); }
+
+    .meta {
+      display: flex;
+      gap: 8px;
+      font-size: 0.75rem;
+      color: var(--muted);
+      align-items: center;
+    }
+
+    .meta .subtasks {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+    }
+    .meta .subtasks .done { text-decoration: line-through; opacity: 0.5; }
+    .meta .links { display: flex; align-items: center; gap: 2px; }
+    .meta .links a { font-size: 0.7rem; text-decoration: underline; color: var(--accent); }
+    .meta .due { background: rgba(239,68,68,0.1); color: var(--danger); padding: 1px 6px; border-radius: 4px; font-size: 0.7rem; }
+
+    .created-at {
+      font-size: 0.68rem;
+      color: #4b5563;
+      letter-spacing: 0.02em;
+    }
+
+    .inline-link {
+      color: var(--accent);
+      text-decoration: underline;
+      text-underline-offset: 2px;
+      font-size: 0.82rem;
+    }
+    .inline-link:hover { color: #22d3ee; }
+
+    .card-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: auto;
+      justify-content: flex-end;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    .card:hover .card-actions { opacity: 1; }
+
+    .card-actions button,
+    .card-actions select {
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 4px 8px;
+      border-radius: var(--radius-sm);
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: var(--transition);
+    }
+
+    .card-actions select {
+      appearance: none;
+      -webkit-appearance: none;
+      padding-right: 20px;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%239ca3af' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 8px center;
+      background-size: 10px 6px;
+    }
+
+    .card-actions button:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: rgba(6,182,212,0.08);
+    }
+
+    .card-actions button.danger:hover {
+      border-color: var(--danger);
+      color: var(--danger);
+      background: rgba(239,68,68,0.08);
+    }
+
+    .add-form {
+      display: flex;
+      gap: 8px;
+      padding: 8px 16px 16px;
+    }
+
+    .add-form input {
+      flex: 1;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 10px 14px;
+      border-radius: var(--radius-sm);
+      font-size: 0.9rem;
+      font-family: inherit;
+      outline: none;
+    }
+
+    .add-form input::placeholder { color: #4b5563; }
+
+    .add-form input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(6,182,212,0.15);
+    }
+
+    .add-form button {
+      background: var(--accent);
+      border: none;
+      color: #fff;
+      padding: 10px 18px;
+      border-radius: var(--radius-sm);
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: var(--transition);
+    }
+
+    .add-form button:hover {
+      background: #0891b2;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(6,182,212,0.25);
+    }
+
+    .drop-over {
+      background: rgba(6,182,212,0.04) !important;
+      border-color: var(--accent) !important;
+      border-radius: var(--radius-sm);
+    }
+
+    /* scrollbar */
+    ::-webkit-scrollbar { height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 3px;
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 1400px) {
+      .column { min-width: 200px; }
+      .card { padding: 10px 12px; font-size: 0.82rem; }
+      .card-content { font-size: 0.82rem; }
+      .card-actions button, .card-actions select { font-size: 0.7rem; padding: 3px 6px; }
+    }
+    @media (max-width: 1100px) {
+      .column { min-width: 180px; }
+      .card { padding: 8px 10px; }
+      .card-content { font-size: 0.78rem; }
+      .site-header { padding: 10px 14px; }
+      .search-bar { padding: 10px 14px; gap: 8px; }
+      .search-bar input { min-width: 160px; }
+    }
+    @media (max-width: 768px) {
+      .site-header { padding: 10px 12px; flex-wrap: wrap; gap: 6px; }
+      .header-nav { gap: 4px; }
+      .nav-link { padding: 5px 8px; font-size: 0.72rem; }
+      board { flex-direction: column; align-items: stretch; }
+      .column { min-width: unset; max-width: 100%; }
+      .card { padding: 8px 10px; margin-bottom: 6px; }
+      .card-content { font-size: 0.78rem; }
+      .search-bar { flex-direction: column; align-items: stretch; gap: 8px; padding: 10px 12px; }
+      .search-bar input { min-width: unset; width: 100%; }
+      .filter-chips { justify-content: center; gap: 4px; }
+      .chip { padding: 4px 8px; font-size: 0.7rem; }
+      .card-actions { flex-wrap: wrap; gap: 4px; }
+      .card-actions button, .card-actions select { font-size: 0.68rem; padding: 2px 5px; }
+      .bulk-bar { padding: 8px 12px; gap: 6px; flex-wrap: wrap; justify-content: center; }
+      .board-wrapper { padding: 10px; }
+      .eisenhower-grid { grid-template-columns: 1fr; grid-template-rows: auto; padding: 10px; gap: 10px; }
+      .eisenhower-cell { padding: 10px; }
+    }
+    @media (max-width: 480px) {
+      .site-logo { font-size: 1.2rem; }
+      .site-logo-sub { font-size: 0.65rem; }
+      .header-date { font-size: 0.72rem; }
+      .column-header { padding: 10px 12px 6px; font-size: 0.75rem; }
+      .card { padding: 6px 8px; }
+      .tag { font-size: 0.65rem; padding: 1px 6px; }
+      .created-at { font-size: 0.62rem; }
+      .meta { font-size: 0.68rem; gap: 4px; }
+    }
+
+    /* Search bar */
+    .search-bar {
+      display: flex;
+      gap: 12px;
+      padding: 14px 24px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .search-bar input {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 8px 14px;
+      border-radius: var(--radius-sm);
+      font-size: 0.85rem;
+      min-width: 220px;
+      outline: none;
+      font-family: inherit;
+    }
+    .search-bar input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(6,182,212,0.12);
+    }
+    .search-bar input::placeholder { color: #4b5563; }
+
+    .filter-chips {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .chip {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 5px 12px;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: var(--transition);
+      font-family: inherit;
+    }
+    .chip:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: rgba(6,182,212,0.06);
+    }
+    .chip.active {
+      background: rgba(6,182,212,0.12);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    /* Eisenhower Matrix */
+    .eisenhower-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr 1fr;
+      gap: 16px;
+      padding: 20px;
+      min-height: calc(100vh - 200px);
+    }
+    .eisenhower-cell {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      overflow-y: auto;
+    }
+    .eisenhower-cell h3 {
+      color: var(--accent);
+      margin-bottom: 12px;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .eisenhower-item {
+      background: var(--card);
+      padding: 10px 14px;
+      border-radius: var(--radius-sm);
+      margin-bottom: 8px;
+      font-size: 0.82rem;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: var(--transition);
+    }
+    .eisenhower-item:hover {
+      border-color: var(--accent);
+    }
+    .eisenhower-item .ei-meta {
+      font-size: 0.68rem;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+    .hidden { display: none !important; }
+
+    /* Archive panel */
+    .archive-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      backdrop-filter: blur(4px);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+    }
+    .archive-overlay.active { display: flex; }
+    .archive-panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      width: 90vw;
+      max-width: 700px;
+      max-height: 80vh;
+      overflow-y: auto;
+      padding: 24px;
+    }
+    .archive-panel h2 {
+      color: var(--accent);
+      margin-bottom: 16px;
+      font-size: 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .archive-panel .close-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 4px 10px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-family: inherit;
+    }
+    .archive-row {
+      background: var(--card);
+      padding: 10px 14px;
+      border-radius: var(--radius-sm);
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      font-size: 0.82rem;
+    }
+    .archive-row .ar-content { flex: 1; }
+    .archive-row .ar-meta { font-size: 0.68rem; color: var(--muted); white-space: nowrap; }
+    .archive-row .restore-btn {
+      background: rgba(16,185,129,0.15);
+      border: 1px solid var(--success);
+      color: var(--success);
+      padding: 4px 10px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-size: 0.75rem;
+      font-family: inherit;
+    }
+    .archive-row .restore-btn:hover { background: rgba(16,185,129,0.25); }
+
+    /* Bulk actions */
+    .card-check {
+      position: absolute;
+      left: 10px;
+      top: 10px;
+      accent-color: var(--accent);
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+      z-index: 5;
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+    .card:hover .card-check,
+    .card-check:checked { opacity: 1; }
+
+    .bulk-bar {
+      display: none;
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--panel);
+      border: 1px solid var(--accent);
+      border-radius: var(--radius);
+      padding: 10px 18px;
+      gap: 10px;
+      z-index: 100;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+      align-items: center;
+    }
+    .bulk-bar.active { display: flex; }
+
+    .bulk-bar span {
+      color: var(--accent);
+      font-weight: 600;
+      font-size: 0.82rem;
+      white-space: nowrap;
+    }
+    .bulk-bar select {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 5px 10px;
+      border-radius: var(--radius-sm);
+      font-size: 0.78rem;
+      font-family: inherit;
+    }
+    .bulk-bar button {
+      background: var(--accent);
+      border: none;
+      color: #fff;
+      padding: 6px 14px;
+      border-radius: var(--radius-sm);
+      font-weight: 600;
+      font-size: 0.8rem;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .bulk-bar button:hover { background: #0891b2; }
+    .bulk-bar button.ghost {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+    .bulk-bar button.ghost:hover {
+      border-color: var(--danger);
+      color: var(--danger);
+    }
+  </style>
+</head>
+<body>
+  <!-- Modern Header -->
+  <header class="site-header">
+    <div class="site-brand">
+      <span class="site-logo">Flow</span>
+      <span class="site-logo-sub">·</span>
+    </div>
+    <div class="header-date" id="header-date">⋯</div>
+    <nav class="header-nav">
+      <a href="/" class="nav-link active" title="לוח">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        לוח
+      </a>
+      <a href="/analytics" class="nav-link" title="סטטיסטיקות">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        Analytics
+      </a>
+    </nav>
+  </header>
+
+  <!-- Search + filters -->
+  <div class="search-bar">
+    <input type="text" id="search-input" placeholder="🔍 חפש משימות..." oninput="applyFilters()">
+    <div class="filter-chips" id="filter-chips">
+      <button class="chip active" data-tag="" onclick="setTagFilter('')">הכל</button>
+      <button class="chip" data-tag="עבודה" onclick="setTagFilter('עבודה')">💼 עבודה</button>
+      <button class="chip" data-tag="אישית" onclick="setTagFilter('אישית')">🏠 אישית</button>
+      <span style="color:var(--muted);margin:0 4px;">|</span>
+      <button class="chip active" data-prio="0" onclick="setPrioFilter('0')">הכל</button>
+      <button class="chip" data-prio="1" onclick="setPrioFilter('1')">🔴 P1</button>
+      <button class="chip" data-prio="2" onclick="setPrioFilter('2')">🟠 P2</button>
+      <button class="chip" data-prio="3" onclick="setPrioFilter('3')">🟡 P3</button>
+      <span style="color:var(--muted);margin:0 4px;">|</span>
+      <button class="chip" id="archive-chip" onclick="toggleArchive()" title="הצג משימות בארכיון">🗄 ארכיון</button>
+    </div>
+  </div>
+
+  <!-- Bulk actions bar -->
+  <div class="bulk-bar" id="bulk-bar">
+    <span id="bulk-count">0 נבחרו</span>
+    <select id="bulk-prio" onchange="bulkSetPriority(this.value)" style="display:none;">
+      <option value="">עדיפות...</option>
+      <option value="1">🔴 P1</option>
+      <option value="2">🟠 P2</option>
+      <option value="3">🟡 P3</option>
+      <option value="4">🟢 P4</option>
+      <option value="5">⚪ P5</option>
+    </select>
+    <select id="bulk-move" onchange="bulkMove(this.value)" style="display:none;">
+      <option value="">העבר ל...</option>
+    </select>
+    <button class="ghost" onclick="bulkClearSelection()">בטל</button>
+    <button onclick="bulkDelete()">🗑 מחק</button>
+  </div>
+
+  <!-- Archive overlay -->
+  <div class="archive-overlay" id="archive-overlay" onclick="if(event.target===this) closeArchive()">
+    <div class="archive-panel">
+      <h2>🗄 ארכיון <button class="close-btn" onclick="closeArchive()">✕ סגור</button></h2>
+      <div id="archive-list">טוען...</div>
+    </div>
+  </div>
+
+  <div class="board-wrapper">
+    <board id="board"></board>
+  </div>
+
+  <script>
+    const API = '/api';
+    const TAGS = ['', 'עבודה', 'אישית'];
+    const PRIORITY_COLORS = {1: 'var(--danger)', 2: 'var(--warning)', 3: '#eab308', 4: 'var(--success)', 5: '#6b7280'};
+    let boardData = { columns: [] };
+    let activeTag = '';
+    let activePrio = 0;
+    let searchQuery = '';
+    let selectedCards = new Set();
+
+    async function fetchBoard() {
+      const r = await fetch(`${API}/board`);
+      boardData = await r.json();
+      render();
+    }
+
+    function matchesCard(c) {
+      // Tag filter
+      if (activeTag && c.tag !== activeTag) return false;
+      // Priority filter
+      if (activePrio > 0 && (c.priority || 3) !== activePrio) return false;
+      // Search (fuzzy)
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        const content = c.content.toLowerCase();
+        // Simple fuzzy: check each word of query is in content
+        const words = q.split(/\s+/);
+        if (!words.every(w => content.includes(w))) return false;
+      }
+      return true;
+    }
+
+    function render() {
+      const boardEl = document.getElementById('board');
+      let visibleCount = 0;
+      boardEl.innerHTML = boardData.columns.map(col => {
+        const filtered = col.cards.filter(matchesCard);
+        visibleCount += filtered.length;
+        return `
+        <div class="column" data-col="${col.id}"
+             ondragover="event.preventDefault(); this.querySelector('.card-list').classList.add('drop-over')"
+             ondragleave="this.querySelector('.card-list').classList.remove('drop-over')"
+             ondrop="handleDrop(event, '${col.id}')">
+          <div class="column-header">
+            <span>${col.title}</span>
+            <span class="column-count">${filtered.length}${activeTag || activePrio || searchQuery ? '/'+col.cards.length : ''}</span>
+          </div>
+          <div class="card-list">
+            ${[...filtered].reverse().map(c => `
+              <div class="card" draggable="true" data-id="${c.id}" "
+                   ondragstart="event.dataTransfer.setData('text/plain', '${c.id}'); this.classList.add('dragging')"
+                   ondragend="this.classList.remove('dragging')">
+                <input type="checkbox" class="card-check" data-id="${c.id}" onchange="toggleSelect(event, '${c.id}')">
+                <div class="priority-dot priority-${c.priority || 3}" title="עדיפות ${c.priority || 3}"></div>
+                <div class="card-content">${linkify(c.content)}</div>
+                ${c.tag ? `<span class="tag tag-${c.tag}">${c.tag}</span>` : ''}
+                <div class="meta">
+                  <span class="created-at">${new Date(c.created_at).toLocaleDateString('he-IL', {day:'numeric',month:'short'})}</span>
+                  ${c.subtasks && c.subtasks.length ? `<span class="subtasks">📝 ${c.subtasks.filter(s=>s.done).length}/${c.subtasks.length}</span>` : ''}
+                  ${c.links && c.links.length ? `<span class="links">🔗 <a href="${c.links[0]}" target="_blank">קישור</a>${c.links.length>1?`+${c.links.length-1}`:''}</span>` : ''}
+                  ${c.due ? `<span class="due">📅 ${new Date(c.due).toLocaleDateString('he-IL')}</span>` : ''}
+                </div>
+                <div class="card-actions">
+                  <select onchange="setTag('${c.id}', this.value)" aria-label="תגית">
+                    ${TAGS.map(t => `<option value="${t}" ${c.tag===t?'selected':''}>${t||'ללא'}</option>`).join('')}
+                  </select>
+                  <select onchange="setPriority('${c.id}', this.value)" aria-label="עדיפות">
+                    ${[1,2,3,4,5].map(p => `<option value="${p}" ${c.priority===p?'selected':''}>${p}</option>`).join('')}
+                  </select>
+                  <button onclick="showSubtasks('${c.id}', this)">✎ subtasks</button>
+                  <button onclick="aiBreakdown('${c.id}')" title="פצל ל-subtasks עם AI">✂️</button>
+                  <button onclick="quickRemind('${c.id}')" title="שלח תזכורת">🔔</button>
+                  <button onclick="editCard('${c.id}', this)" title="ערוך טקסט">✎</button>
+                  ${col.id === 'done' 
+                    ? `<button onclick="archiveCard('${c.id}')" title="העבר לארכיון">🗄️</button>` 
+                    : `<button onclick="markDone('${c.id}')" title="סמן כהושלם">✅</button>`}
+                  <button class="danger" onclick="deleteCard('${c.id}')">✕</button>
+                </div>
+              </div>
+            `).join('') || '<div style="padding:12px;color:var(--muted);text-align:center;font-size:0.8rem;">אין תוצאות</div>'}
+          </div>
+          <div class="add-form">
+            <input type="text" placeholder="+ הוסף משימה..." onkeydown="if(event.key==='Enter')addCard('${col.id}',this)">
+            <button onclick="addCard('${col.id}',this.previousElementSibling)">+</button>
+          </div>
+        </div>
+      `}).join('');
+      // Show result count
+      const countEl = document.getElementById('result-count');
+      if (activeTag || activePrio || searchQuery) {
+        document.title = `🔍 ${visibleCount} · Flow`;
+      } else {
+        document.title = 'Flow · משימות';
+      }
+    }
+
+    function esc(s) {
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function linkify(text) {
+      return esc(text).replace(
+        /(https?:\/\/[^\s<>"']+)/g,
+        '<a href="$1" target="_blank" class="inline-link">$1</a>'
+      );
+    }
+
+    async function handleDrop(e, toCol) {
+      e.preventDefault();
+      e.currentTarget.querySelector('.card-list').classList.remove('drop-over');
+      const cardId = e.dataTransfer.getData('text/plain');
+      if (!cardId) return;
+      await fetch(`${API}/cards/${cardId}/move`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ column_id: toCol })
+      });
+      await fetchBoard();
+    }
+
+    async function addCard(colId, input) {
+      const content = input.value.trim();
+      if (!content) return;
+      await fetch(`${API}/cards`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content, column_id: colId })
+      });
+      input.value = '';
+      await fetchBoard();
+    }
+
+    async function setTag(cardId, tag) {
+      await fetch(`${API}/cards/${cardId}/tag`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tag })
+      });
+      await fetchBoard();
+    }
+
+    async function setPriority(cardId, priority) {
+      await fetch(`${API}/cards/${cardId}/priority`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ priority: parseInt(priority) })
+      });
+      await fetchBoard();
+    }
+
+    async function deleteCard(id) {
+      if (!confirm('למחוק את המשימה?')) return;
+      await fetch(`${API}/cards/${id}`, { method: 'DELETE' });
+      await fetchBoard();
+    }
+
+    async function markDone(cardId) {
+      await fetch(`${API}/cards/${cardId}/move`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ column_id: 'done' })
+      });
+      await fetchBoard();
+    }
+
+    async function archiveCard(cardId) {
+      await fetch(`${API}/cards/${cardId}/archive`, {
+        method: 'POST'
+      });
+      await fetchBoard();
+    }
+
+    async function editCard(id, btn) {
+      const card = btn.closest('.card');
+      const contentEl = card.querySelector('.card-content');
+      const old = contentEl ? contentEl.textContent.trim() : '';
+      const input = document.createElement('input');
+      input.value = ''; // start empty
+      input.placeholder = 'הוסף מידע...';
+      input.style.cssText = 'width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);font-size:0.9rem;margin-bottom:6px;';
+      card.insertBefore(input, card.firstChild);
+      input.focus();
+      input.onblur = input.onkeydown = async ev => {
+        if (ev && ev.key && ev.key !== 'Enter') return;
+        const text = input.value.trim();
+        if (!text) { input.remove(); return; }
+        // Smart merge: append new info to existing card content
+        const merged = old ? old + ' | ' + text : text;
+        await fetch(`${API}/cards/${id}/edit`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: merged })
+        });
+        await fetchBoard();
+      };
+    }
+
+    async function showSubtasks(cardId, btn) {
+      // Simple prompt to add subtask; in future could show a modal
+      const content = prompt('הוסף subtask (השאר ריק כדי לצפות):');
+      if (content === null) return; // canceled
+      if (content.trim() === '') {
+        // just show existing subtasks in alert for demo
+        const data = boardData.columns.flatMap(c=>c.cards).find(c=>c.id===cardId);
+        const subs = data?.subtasks || [];
+        alert(subs.map((s,i)=>`${i+1}. [${s.done?'x':' '}] ${s.content}`).join('\n') || 'אין subtasks');
+        return;
+      }
+      await fetch(`${API}/cards/${cardId}/subtasks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: content.trim() })
+      });
+      await fetchBoard();
+    }
+
+    async function aiBreakdown(cardId) {
+      const btn = document.querySelector(`[onclick*="aiBreakdown('${cardId}')"]`);
+      if (btn) btn.textContent = '⏳';
+      try {
+        await fetch(`${API}/cards/${cardId}/breakdown`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+      } catch (e) {
+        alert('שגיאה בפיצול');
+      }
+      await fetchBoard();
+    }
+
+    // ── Filters ──
+    function setTagFilter(tag) {
+      activeTag = tag;
+      document.querySelectorAll('#filter-chips [data-tag]').forEach(b => b.classList.toggle('active', b.dataset.tag === tag));
+      render();
+    }
+    function setPrioFilter(prio) {
+      activePrio = parseInt(prio);
+      document.querySelectorAll('#filter-chips [data-prio]').forEach(b => b.classList.toggle('active', b.dataset.prio === prio));
+      render();
+    }
+    function applyFilters() {
+      searchQuery = document.getElementById('search-input').value.trim();
+      render();
+    }
+
+    // ── Bulk Actions ──
+    function toggleSelect(ev, cardId) {
+      const cb = ev.target;
+      if (cb.checked) selectedCards.add(cardId);
+      else selectedCards.delete(cardId);
+      updateBulkBar();
+    }
+
+    function updateBulkBar() {
+      const bar = document.getElementById('bulk-bar');
+      const count = document.getElementById('bulk-count');
+      const sel = selectedCards.size;
+      if (sel > 0) {
+        bar.classList.add('active');
+        count.textContent = sel + ' נבחרו';
+        document.getElementById('bulk-prio').style.display = 'inline-block';
+        document.getElementById('bulk-move').style.display = 'inline-block';
+        // Populate move options
+        const moveSel = document.getElementById('bulk-move');
+        moveSel.innerHTML = '<option value="">העבר ל...</option>' +
+          boardData.columns.map(c => `<option value="${c.id}">${c.title}</option>`).join('');
+      } else {
+        bar.classList.remove('active');
+        document.getElementById('bulk-prio').style.display = 'none';
+        document.getElementById('bulk-move').style.display = 'none';
+      }
+    }
+
+    async function bulkSetPriority(prio) {
+      if (!prio || !selectedCards.size) return;
+      const ps = [];
+      for (const id of selectedCards) {
+        ps.push(fetch(`${API}/cards/${id}/priority`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ priority: parseInt(prio) })
+        }));
+      }
+      await Promise.all(ps);
+      selectedCards.clear();
+      document.getElementById('bulk-prio').value = '';
+      await fetchBoard();
+    }
+
+    async function bulkMove(colId) {
+      if (!colId || !selectedCards.size) return;
+      const ps = [];
+      for (const id of selectedCards) {
+        ps.push(fetch(`${API}/cards/${id}/move`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ column_id: colId })
+        }));
+      }
+      await Promise.all(ps);
+      selectedCards.clear();
+      document.getElementById('bulk-move').value = '';
+      await fetchBoard();
+    }
+
+    async function bulkDelete() {
+      if (!selectedCards.size) return;
+      if (!confirm('למחוק ' + selectedCards.size + ' משימות?')) return;
+      const ps = [];
+      for (const id of selectedCards) {
+        ps.push(fetch(`${API}/cards/${id}`, { method: 'DELETE' }));
+      }
+      await Promise.all(ps);
+      selectedCards.clear();
+      await fetchBoard();
+    }
+
+    function bulkClearSelection() {
+      selectedCards.clear();
+      document.querySelectorAll('.card-check').forEach(cb => cb.checked = false);
+      updateBulkBar();
+    }
+
+    // ── Archive ──
+    async function toggleArchive() {
+      const chip = document.getElementById('archive-chip');
+      chip.classList.toggle('active');
+      if (chip.classList.contains('active')) {
+        await showArchive();
+      } else {
+        closeArchive();
+      }
+    }
+
+    async function showArchive() {
+      const r = await fetch(`${API}/archived`);
+      const d = await r.json();
+      const list = document.getElementById('archive-list');
+      if (!d.archived || d.archived.length === 0) {
+        list.innerHTML = '<div style="color:var(--muted);text-align:center;padding:20px;">אין משימות בארכיון 🎉</div>';
+      } else {
+        list.innerHTML = d.archived.map(c => `
+          <div class="archive-row">
+            <div class="ar-content">${esc(c.content)}</div>
+            <div class="ar-meta">${c.tag || 'ללא'} · ${new Date(c.created_at).toLocaleDateString('he-IL')}</div>
+            <button class="restore-btn" onclick="restoreArchived('${c.id}')">↩ שחזר</button>
+          </div>
+        `).join('');
+      }
+      document.getElementById('archive-overlay').classList.add('active');
+    }
+
+    function closeArchive() {
+      document.getElementById('archive-overlay').classList.remove('active');
+      document.getElementById('archive-chip').classList.remove('active');
+    }
+
+    async function restoreArchived(cardId) {
+      await fetch(`${API}/archived/${cardId}/restore`, { method: 'POST' });
+      await showArchive(); // refresh list
+      await fetchBoard();  // refresh board
+    }
+
+    // ── Eisenhower Toggle ──
+    let eisenhowerMode = false;
+    async function toggleEisenhower() {
+      eisenhowerMode = !eisenhowerMode;
+      document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+      document.querySelector('.nav-link[title="לוח"]').classList.toggle('active', !eisenhowerMode);
+      
+      const searchBar = document.querySelector('.search-bar');
+      const boardEl = document.getElementById('board');
+      const bulkBar = document.getElementById('bulk-bar');
+      
+      if (eisenhowerMode) {
+        searchBar.classList.add('hidden');
+        boardEl.parentElement.classList.add('hidden');
+        bulkBar.classList.remove('active');
+        await renderEisenhower();
+      } else {
+        searchBar.classList.remove('hidden');
+        boardEl.parentElement.classList.remove('hidden');
+        document.getElementById('eisenhower-view')?.remove();
+      }
+    }
+
+    async function renderEisenhower() {
+      let existing = document.getElementById('eisenhower-view');
+      if (existing) existing.remove();
+      
+      const r = await fetch(`${API}/eisenhower`);
+      const data = await r.json();
+      const m = data.matrix;
+      
+      const grid = document.createElement('div');
+      grid.id = 'eisenhower-view';
+      grid.className = 'eisenhower-grid';
+      grid.innerHTML = `
+        <div class="eisenhower-cell"><h3>🔴 דחוף & חשוב</h3>
+          ${m.urgent_important.map(c => `<div class="eisenhower-item" onclick="quickRemind('${c.id}')">${esc(c.content)}<div class="ei-meta">${c.col} · ${new Date(c.created_at).toLocaleDateString('he-IL')}</div></div>`).join('') || '<div style="color:var(--muted);font-size:0.75rem;">אין</div>'}
+        </div>
+        <div class="eisenhower-cell"><h3>🟡 לא דחוף & חשוב</h3>
+          ${m.not_urgent_important.map(c => `<div class="eisenhower-item" onclick="quickRemind('${c.id}')">${esc(c.content)}<div class="ei-meta">${c.col} · ${new Date(c.created_at).toLocaleDateString('he-IL')}</div></div>`).join('') || '<div style="color:var(--muted);font-size:0.75rem;">אין</div>'}
+        </div>
+        <div class="eisenhower-cell"><h3>🟠 דחוף & לא חשוב</h3>
+          ${m.urgent_not_important.map(c => `<div class="eisenhower-item" onclick="quickRemind('${c.id}')">${esc(c.content)}<div class="ei-meta">${c.col} · ${new Date(c.created_at).toLocaleDateString('he-IL')}</div></div>`).join('') || '<div style="color:var(--muted);font-size:0.75rem;">אין</div>'}
+        </div>
+        <div class="eisenhower-cell"><h3>🟢 לא דחוף & לא חשוב</h3>
+          ${m.not_urgent_not_important.map(c => `<div class="eisenhower-item" onclick="quickRemind('${c.id}')">${esc(c.content)}<div class="ei-meta">${c.col} · ${new Date(c.created_at).toLocaleDateString('he-IL')}</div></div>`).join('') || '<div style="color:var(--muted);font-size:0.75rem;">אין</div>'}
+        </div>
+      `;
+      document.querySelector('.board-wrapper').after(grid);
+    }
+
+    // ── Quick Reminder ──
+    async function quickRemind(cardId) {
+      try {
+        const r = await fetch(`${API}/cards/${cardId}/remind`, { method: 'POST' });
+        const d = await r.json();
+        alert('🔔 תזכורת נשלחה!');
+      } catch (e) {
+        alert('⚠️ שליחת התזכורת נכשלה');
+      }
+    }
+
+    // ── Smart Archive + Recurring (auto-run on fetch) ──
+    async function runBackgroundTasks() {
+      try { await fetch(`${API}/smart-archive`, { method: 'POST' }); } catch {}
+      try { await fetch(`${API}/recurring/check`, { method: 'POST' }); } catch {}
+    }
+
+    // Override fetchBoard to include background tasks
+    const _origFetchBoard = fetchBoard;
+    fetchBoard = async function() {
+      await _origFetchBoard();
+      setTimeout(() => {
+        // Run background tasks every 5 minutes (300s) after first load
+        const last = parseInt(sessionStorage.getItem('last_bg_tasks') || '0');
+        if (Date.now() - last > 300000) {
+          runBackgroundTasks();
+          sessionStorage.setItem('last_bg_tasks', Date.now());
+        }
+      }, 2000);
+    };
+
+    // ── Dynamic header date ──
+    function updateHeaderDate() {
+      const now = new Date();
+      const opts = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+      const heDate = now.toLocaleDateString('he-IL', opts);
+      document.getElementById('header-date').textContent = heDate;
+    }
+    updateHeaderDate();
+
+    fetchBoard();
+  </script>
+</body>
+</html>

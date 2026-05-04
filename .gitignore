@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.pyo
+.env
+*.log
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+tasks.json
+tasks.md
