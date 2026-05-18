@@ -11,6 +11,17 @@ from functools import wraps
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+# Load .env for Telegram token
+env_path = Path.home() / ".hermes" / ".env"
+if env_path.exists():
+    with open(env_path) as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                key, _, val = line.partition("=")
+                if key not in os.environ:
+                    os.environ[key] = val.strip().strip('"').strip("'")
+
 import analytics_utils
 from flask import Flask, Response, jsonify, render_template, request
 
@@ -341,6 +352,21 @@ def edit_card(card_id: str):
     sync_json_to_md()
     return jsonify({"ok": True})
 
+@app.route("/api/cards/<card_id>/note", methods=["POST"])
+@require_auth
+def set_note(card_id: str):
+    data = load_tasks()
+    note = request.json.get("note", "")
+    for col in data["columns"]:
+        for card in col["cards"]:
+            if card["id"] == card_id:
+                card["note"] = note
+                card["updated_at"] = datetime.now().isoformat()
+                save_tasks(data)
+                sync_json_to_md()
+                return jsonify({"ok": True})
+    return jsonify({"error": "card not found"}), 404
+
 
 @app.route("/api/cards/<card_id>/tag", methods=["POST"])
 @require_auth
@@ -622,7 +648,7 @@ def smart_archive():
             continue
         for card in col["cards"]:
             created = datetime.fromisoformat(card.get("created_at", now.isoformat()))
-            if not card.get("archived") and (now - created).total_seconds() > 7 * 86400:
+            if not card.get("archived") and (now - created).total_seconds() > 72 * 3600:
                 card["archived"] = True
                 card["updated_at"] = now.isoformat()
                 archived += 1
@@ -636,7 +662,9 @@ def smart_archive():
 @app.route("/api/cards/<card_id>/remind", methods=["POST"])
 @require_auth
 def quick_remind(card_id: str):
-    """Sends a Telegram reminder via Hermes. Falls back to returning the link."""
+    """Sends or schedules a Telegram reminder. delay: 'now', '1h', '3h', 'morning', 'evening', or ISO datetime."""
+    import urllib.request, os, subprocess, sys
+
     data = load_tasks()
     card_content = None
     for col in data["columns"]:
@@ -649,22 +677,105 @@ def quick_remind(card_id: str):
     if not card_content:
         return jsonify({"error": "card not found"}), 404
 
+    delay = request.json.get("delay", "now") if request.json else "now"
     reminder_text = f"🔔 תזכורת: {card_content}"
-    # Try sending via Hermes send_message
-    try:
-        import subprocess, sys
-        subprocess.run(
-            [sys.executable, "-c", f'''
-import urllib.request, json
-data = json.dumps({{"message": "{reminder_text}"}}).encode()
-req = urllib.request.Request("http://localhost:5050/api/tt", data=data, headers={{"Content-Type":"application/json"}})
-'''],
-            capture_output=True, timeout=10
-        )
-    except:
-        pass
 
-    return jsonify({"ok": True, "reminder": reminder_text, "link": f"https://zone-shadily-chowder.ngrok-free.dev"})
+    # Resolve delay to actual send time
+    now = datetime.now()
+    send_at = now
+    if delay == "now":
+        send_at = now
+    elif delay == "1h":
+        from datetime import timedelta
+        send_at = now + timedelta(hours=1)
+    elif delay == "3h":
+        from datetime import timedelta
+        send_at = now + timedelta(hours=3)
+    elif delay == "morning":
+        from datetime import timedelta
+        tomorrow = now + timedelta(days=1)
+        send_at = tomorrow.replace(hour=8, minute=0, second=0, microsecond=0)
+    elif delay == "evening":
+        from datetime import timedelta
+        tomorrow = now + timedelta(days=1)
+        send_at = tomorrow.replace(hour=18, minute=0, second=0, microsecond=0)
+    else:
+        # ISO datetime string
+        try:
+            send_at = datetime.fromisoformat(delay)
+        except:
+            send_at = now
+
+    if send_at <= now:
+        # Send immediately
+        return _send_telegram_now(reminder_text)
+    else:
+        # Schedule via cron
+        return _schedule_reminder(reminder_text, send_at, card_id)
+
+
+def _send_telegram_now(text: str):
+    import urllib.request, os
+    bot_token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    chat_id = "359802219"
+    success = False
+    if bot_token:
+        try:
+            url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+            payload = json.dumps({"chat_id": chat_id, "text": text, "parse_mode": "HTML"}).encode()
+            req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
+            resp = urllib.request.urlopen(req, timeout=10)
+            result = json.loads(resp.read())
+            success = result.get("ok", False)
+        except:
+            success = False
+    return jsonify({"ok": True, "reminder": text, "sent": success})
+
+
+def _schedule_reminder(text: str, send_at: datetime, card_id: str):
+    """Schedules a one-shot cron job for the reminder."""
+    import subprocess, sys, os
+    timestamp = send_at.strftime("%Y-%m-%dT%H:%M:%S")
+    escaped_text = text.replace("'", "'\\''")
+    script = f"""#!/bin/bash
+python3 -c '
+import urllib.request, json, os
+bot_token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+chat_id = "359802219"
+text = """ + f"'{escaped_text}'" + """
+url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+payload = json.dumps({"chat_id": chat_id, "text": text, "parse_mode": "HTML"}).encode()
+req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
+try:
+    resp = urllib.request.urlopen(req, timeout=10)
+except:
+    pass
+'
+"""
+    script_path = Path.home() / ".hermes" / "scripts" / f"remind_{card_id}_{send_at.strftime('%Y%m%d_%H%M%S')}.sh"
+    script_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(script_path, "w") as f:
+        f.write(script)
+    script_path.chmod(0o755)
+
+    # Use hermes cron command to schedule
+    try:
+        schedule_str = send_at.isoformat(timespec="seconds")
+        subprocess.run(
+            ["hermes", "cron", "create",
+             "--name", f"remind-{card_id}",
+             "--schedule", schedule_str,
+             "--prompt", f"שלח תזכורת: {text}",
+             "--deliver", "telegram:359802219",
+             "--repeat", "1",
+             "--skills", "[]",
+             "--enabled-toolsets", '["web"]'],
+            capture_output=True, timeout=15, env={**os.environ}
+        )
+        return jsonify({"ok": True, "reminder": text, "sent": False, "scheduled": timestamp})
+    except Exception as e:
+        # Fallback: return with scheduled info
+        return jsonify({"ok": True, "reminder": text, "sent": False, "scheduled": timestamp, "error": str(e)})
 
 
 # ---------- Eisenhower Matrix ----------
@@ -784,6 +895,12 @@ def auto_tag_all():
 def analytics_page():
     return render_template("analytics.html")
 
+# ---------- Archive Page ----------
+@app.route("/archive")
+@require_auth
+def archive_page():
+    return render_template("archive.html")
+
 # ---------- Archived cards ----------
 @app.route("/api/archived", methods=["GET"])
 @require_auth
@@ -841,8 +958,32 @@ def get_analytics():
     stats = analytics_utils.get_analytics(data)
     return jsonify(stats)
 
+
+# ---------- Sports Ticker ----------
+SPORTS_FILE = Path.home() / ".hermes" / "sports.json"
+
+@app.route("/api/sports", methods=["GET"])
+@require_auth
+def get_sports():
+    """Read sports data from dedicated JSON file (updated by cron jobs). No Canvas cards involved."""
+    if SPORTS_FILE.exists():
+        with open(SPORTS_FILE, "r", encoding="utf-8") as f:
+            return jsonify(json.load(f))
+    return jsonify({"barcelona": None, "f1": None})
+
+
+@app.route("/api/sports", methods=["POST"])
+@require_auth
+def update_sports():
+    """Cron jobs POST here to update the ticker data."""
+    body = request.get_json(silent=True) or {}
+    with open(SPORTS_FILE, "w", encoding="utf-8") as f:
+        json.dump(body, f, ensure_ascii=False, indent=2)
+    return jsonify({"ok": True})
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5050))
     print(f"\n📋 Andrew's Task Canvas → http://localhost:{port}")
     print(f"   Username: {USERNAME}")
-    app.run(host="0.0.0.0", port=port, debug=True)
+    app.run(host="127.0.0.1", port=port, debug=True)

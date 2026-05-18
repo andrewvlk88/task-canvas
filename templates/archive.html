@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>ארכיון · Canvas</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; margin: 0; padding: 0; box-sizing: border-box; -webkit-font-smoothing: antialiased; }
+    :root {
+      --bg: #0A0A0B; --surface: #161618; --surface-hover: #1C1C1F;
+      --border: #2A2A2D; --border-strong: #3A3A40;
+      --text: #FAFAFA; --text-muted: #A1A1AA; --text-dim: #71717A; --text-faint: #52525B;
+      --accent: #8B5CF6; --accent-hover: #A78BFA;
+      --accent-dim: rgba(139, 92, 246, 0.1);
+    }
+    body { background: var(--bg); color: var(--text); min-height: 100vh; font-size: 14px; line-height: 1.5; }
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }
+    .archived-card {
+      background: rgba(139, 92, 246, 0.03);
+      border: 1px solid rgba(139, 92, 246, 0.1); border-radius: 12px;
+      padding: 14px 16px; opacity: 0.7; backdrop-filter: blur(10px);
+      transition: all 0.15s;
+    }
+    .archived-card:hover { opacity: 0.9; background: rgba(139, 92, 246, 0.07); border-color: var(--accent); }
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 7px 12px; font-size: 12.5px; font-weight: 500;
+      border-radius: 6px; border: 1px solid var(--border);
+      background: var(--surface); color: var(--text-muted);
+      cursor: pointer; transition: all 0.15s;
+    }
+    .btn:hover { color: var(--text); border-color: var(--border-strong); }
+    .btn-primary { background: var(--accent); color: white; border-color: var(--accent); }
+    .btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+    .empty { padding: 32px 16px; text-align: center; color: var(--text-dim); font-size: 13px; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+    .fade-in { animation: fadeIn 0.2s ease-out; }
+  </style>
+</head>
+<body>
+
+<header class="sticky top-0 z-50 bg-[rgba(10,10,11,0.85)] backdrop-blur-[12px] border-b border-[#2A2A2D] px-5 py-4">
+  <div class="flex justify-between items-center max-w-[1200px] mx-auto">
+    <div class="flex items-center gap-4">
+      <button class="btn" onclick="window.location.href='/'">← חזרה</button>
+      <div>
+        <h1 class="text-white font-bold text-lg">🗄️ ארכיון</h1>
+        <span class="text-[#71717A] text-xs">משימות שהושלמו לפני יותר מ-72 שעות</span>
+      </div>
+    </div>
+    <span id="archive-counter" class="text-[#71717A] text-sm font-medium"></span>
+  </div>
+</header>
+
+<main class="max-w-[1200px] mx-auto px-5 pb-24 mt-6">
+  <div id="archived-list" class="flex flex-col gap-2"></div>
+  <div id="archive-empty" class="empty hidden">אין משימות בארכיון</div>
+</main>
+
+<script>
+const API = '/api';
+let archivedData = [];
+
+async function loadArchived() {
+  try {
+    const r = await fetch(`${API}/archived`);
+    const data = await r.json();
+    archivedData = data.archived || [];
+    render();
+  } catch {
+    document.getElementById('archive-empty').textContent = 'שגיאה בטעינה';
+    document.getElementById('archive-empty').classList.remove('hidden');
+  }
+}
+
+function render() {
+  const el = document.getElementById('archived-list');
+  const empty = document.getElementById('archive-empty');
+  document.getElementById('archive-counter').textContent = archivedData.length + ' משימות';
+
+  if (!archivedData.length) {
+    el.innerHTML = '';
+    empty.classList.remove('hidden');
+    return;
+  }
+
+  empty.classList.add('hidden');
+  el.innerHTML = archivedData.map(c => `
+    <div class="archived-card fade-in flex items-center gap-4">
+      <div class="flex-1 min-w-0">
+        <div class="text-white/80 font-medium text-[14px]">${esc(c.content)}</div>
+        <div class="flex items-center gap-2 text-[11px] text-[#71717A] mt-1.5">
+          <span>📅 ${new Date(c.created_at).toLocaleDateString('he-IL', { weekday:'long', day:'numeric', month:'short' })}</span>
+          ${c.tag ? `<span class="w-1 h-1 rounded-full bg-[#52525B]"></span><span>${c.tag === 'עבודה' ? '💼' : '🏠'} ${esc(c.tag)}</span>` : ''}
+          <span class="w-1 h-1 rounded-full bg-[#52525B]"></span>
+          <span>נסגר: ${new Date(c.updated_at).toLocaleDateString('he-IL', { day:'numeric', month:'short' })}</span>
+        </div>
+      </div>
+      <button class="btn text-xs" onclick="restoreCard('${c.id}')">שחזר</button>
+    </div>
+  `).join('');
+}
+
+async function restoreCard(cardId) {
+  await fetch(`${API}/archived/${cardId}/restore`, { method: 'POST' });
+  await loadArchived();
+}
+
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;');
+}
+
+loadArchived();
+</script>
+</body>
+</html>
