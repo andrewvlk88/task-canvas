@@ -3,80 +3,120 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Canvas · Aether</title>
-  <style>
-    * { font-family: 'Inter', -apple-system, sans-serif; margin: 0; padding: 0; box-sizing: border-box; }
-    :root {
-      --bg: #0A0A0B; --surface: #161618; --surface-hover: #1C1C1F;
-      --border: #2A2A2D; --border-strong: #3A3A40;
-      --text: #FAFAFA; --text-muted: #A1A1AA; --text-dim: #71717A; --text-faint: #52525B;
-      --accent: #8B5CF6; --accent-hover: #A78BFA; --accent-dim: rgba(139,92,246,0.1);
-      --danger: #EF4444; --warning: #F59E0B; --success: #10B981;
-      --glass: rgba(25,25,38,0.55); --glass-border: rgba(139,92,246,0.1);
+  <title>Canvas · Aether Premium</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700;800&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Heebo', 'Inter', 'sans-serif'] },
+          colors: {
+            aether: {
+              bg: '#080511',
+              card: '#120d24',
+              cardHov: '#191333',
+              accent: '#8b5cf6',
+              accentGlow: 'rgba(139, 92, 246, 0.4)',
+              textMuted: '#9e99b3',
+              border: '#231b3c'
+            }
+          }
+        }
+      }
     }
-    body { background: var(--bg); color: var(--text); min-height: 100vh; font-size: 14px; line-height: 1.5; }
-    ::-webkit-scrollbar { width: 8px; height: 8px; }
+  </script>
+  <style>
+    * { font-family: 'Heebo', 'Inter', sans-serif; margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background-color: #080511;
+      background-image: radial-gradient(circle at 10% 20%, rgba(139, 92, 246, 0.12) 0%, transparent 40%),
+                        radial-gradient(circle at 90% 80%, rgba(75, 0, 130, 0.1) 0%, transparent 40%);
+      background-attachment: fixed;
+      color: #FAFAFA; min-height: 100vh; font-size: 14px; line-height: 1.5;
+    }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb { background: #231b3c; border-radius: 10px; }
+    ::-webkit-scrollbar-thumb:hover { background: #8b5cf6; }
 
-    .header { position: sticky; top: 0; z-index: 50; background: rgba(10,10,11,0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); padding: 14px 20px; }
-    .header-inner { display: flex; justify-content: space-between; align-items: center; }
-    .brand-text { font-size: 17px; font-weight: 700; color: white; }
-    .brand-sub { font-size: 9px; letter-spacing: 0.15em; color: var(--accent-hover); font-weight: 700; margin-top: 2px; }
-    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; font-size: 12px; font-weight: 500; border-radius: 20px; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); cursor: pointer; transition: all 0.15s; text-decoration: none; }
-    .btn:hover { color: var(--text); border-color: var(--border-strong); }
+    :root {
+      --bg: #080511; --surface: #120d24; --surface-hover: #191333;
+      --border: #231b3c; --border-strong: #3a2f5c;
+      --text: #FAFAFA; --text-muted: #9e99b3; --text-dim: #6b648c; --text-faint: #4a4366;
+      --accent: #8b5cf6; --accent-hover: #a78bfa; --accent-dim: rgba(139,92,246,0.1);
+      --danger: #EF4444; --warning: #F59E0B; --success: #10B981;
+      --glass: rgba(18,13,36,0.65); --glass-border: rgba(139,92,246,0.1);
+    }
+
+    .header { position: sticky; top: 0; z-index: 50; background: rgba(8,5,17,0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-bottom: 1px solid #231b3c; padding: 14px 20px; }
+    .header-inner { display: flex; justify-content: space-between; align-items: center; max-width: 100%; }
+    .brand { display: flex; align-items: center; gap: 10px; }
+    .brand-text { font-size: 18px; font-weight: 800; letter-spacing: -0.02em; background: linear-gradient(135deg, #fff, #c4b5fd); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .brand-sub { font-size: 9px; letter-spacing: 0.18em; color: #a78bfa; font-weight: 700; margin-top: 2px; padding: 2px 8px; border: 1px solid rgba(139,92,246,0.2); border-radius: 10px; background: rgba(139,92,246,0.08); }
+    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; font-size: 12px; font-weight: 500; border-radius: 20px; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); cursor: pointer; transition: all 0.2s; text-decoration: none; }
+    .btn:hover { color: var(--text); border-color: var(--accent); background: var(--surface-hover); }
     .btn.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent-hover); }
 
-    .controls { padding: 12px 20px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center; border-bottom: 1px solid var(--border); }
-    .search-input { flex: 1; min-width: 200px; background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 10px 14px; border-radius: 20px; font-size: 13px; outline: none; }
+    .controls { padding: 12px 20px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; border-bottom: 1px solid var(--border); }
+    .search-input { flex: 1; min-width: 200px; background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 10px 16px; border-radius: 20px; font-size: 13px; outline: none; transition: all 0.2s; }
     .search-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
-    .chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; font-size: 12px; font-weight: 500; background: var(--surface); border: 1px solid var(--border); color: var(--text-muted); border-radius: 20px; cursor: pointer; transition: all 0.15s; }
+    .search-input::placeholder { color: var(--text-faint); }
+    .chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; font-size: 12px; font-weight: 500; background: var(--surface); border: 1px solid var(--border); color: var(--text-muted); border-radius: 20px; cursor: pointer; transition: all 0.2s; }
     .chip:hover { color: var(--text); border-color: var(--border-strong); }
-    .chip.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent-hover); }
+    .chip.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent-hover); box-shadow: 0 0 12px rgba(139,92,246,0.15); }
 
     .board { display: flex; gap: 12px; overflow-x: auto; padding: 16px; max-width: 100%; }
-    .column { min-width: 250px; max-width: 320px; flex: 1; display: flex; flex-direction: column; gap: 8px; background: #121215; padding: 12px; border-radius: 16px; border: 1px solid var(--border); }
+    .column { min-width: 250px; max-width: 320px; flex: 1; display: flex; flex-direction: column; gap: 8px; background: rgba(18,13,36,0.7); padding: 12px; border-radius: 16px; border: 1px solid var(--border); }
     .col-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); display: flex; justify-content: space-between; }
-    .col-count { font-size: 11px; font-weight: 600; background: var(--surface-active, #232328); padding: 2px 8px; border-radius: 10px; color: var(--text-muted); }
+    .col-count { font-size: 11px; font-weight: 600; background: rgba(139,92,246,0.1); padding: 2px 8px; border-radius: 10px; color: var(--accent-hover); }
     .col-body { display: flex; flex-direction: column; gap: 6px; min-height: 60px; }
     .col-body.drop-active { background: rgba(139,92,246,0.06); border-radius: 12px; }
 
-    .card { padding: 12px 14px; background: var(--glass); border: 1px solid var(--glass-border); border-radius: 12px; cursor: grab; transition: all 0.2s; backdrop-filter: blur(10px); position: relative; }
-    .card:hover { background: rgba(139,92,246,0.08); border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.15); }
+    .card { padding: 12px 14px; background: var(--glass); border: 1px solid var(--glass-border); border-radius: 14px; cursor: grab; transition: all 0.2s; backdrop-filter: blur(12px); position: relative; }
+    .card:hover { background: rgba(139,92,246,0.1); border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.2), 0 0 20px rgba(139,92,246,0.06); }
     .card.dragging { opacity: 0.5; transform: scale(0.96); }
     .card-title { font-size: 14px; font-weight: 500; color: rgba(255,255,255,0.9); line-height: 1.4; margin-bottom: 8px; word-break: break-word; user-select: text; }
     .card-title a { color: var(--accent-hover); text-decoration: underline; text-underline-offset: 2px; pointer-events: auto; }
-    .card-title a:hover { color: #C4B5FD; }
-    .card-note { font-size: 11px; color: var(--accent-hover); margin: 4px 0 6px; padding: 4px 8px; background: rgba(139,92,246,0.08); border-radius: 8px; font-style: italic; user-select: text; }
+    .card-title a:hover { color: #c4b5fd; }
+    .card-note { font-size: 11px; color: var(--accent-hover); margin: 4px 0 6px; padding: 6px 10px; background: rgba(139,92,246,0.08); border-radius: 8px; font-style: italic; user-select: text; border: 1px solid rgba(139,92,246,0.1); }
     .card-note a { color: var(--accent-hover); text-decoration: underline; text-underline-offset: 2px; pointer-events: auto; }
     .card-meta { display: flex; align-items: center; gap: 6px; font-size: 10.5px; color: var(--text-dim); flex-wrap: wrap; }
     .card-actions { display: flex; gap: 4px; margin-top: 8px; opacity: 0; transition: opacity 0.2s; }
     .card:hover .card-actions { opacity: 1; }
-    .action-btn { font-size: 10px; padding: 3px 8px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--text-muted); cursor: pointer; transition: all 0.15s; }
+    .action-btn { font-size: 10px; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--text-muted); cursor: pointer; transition: all 0.15s; }
     .action-btn:hover { border-color: var(--accent); color: var(--accent-hover); background: var(--accent-dim); }
     .action-btn.danger:hover { border-color: var(--danger); color: var(--danger); background: rgba(239,68,68,0.08); }
     .action-btn.done-btn:hover { border-color: var(--success); color: var(--success); background: rgba(16,185,129,0.08); }
+    .action-btn.remind-btn:hover { border-color: #f59e0b; color: #f59e0b; background: rgba(245,158,11,0.08); }
 
     .priority-dot { position: absolute; left: 10px; top: 10px; width: 8px; height: 8px; border-radius: 50%; }
-    .p1 { background: var(--danger); box-shadow: 0 0 6px rgba(239,68,68,0.5); }
-    .p2 { background: var(--warning); box-shadow: 0 0 6px rgba(245,158,11,0.5); }
-    .p3 { background: #eab308; }
-    .p4 { background: var(--success); }
+    .p1 { background: var(--danger); box-shadow: 0 0 8px rgba(239,68,68,0.6); }
+    .p2 { background: var(--warning); box-shadow: 0 0 8px rgba(245,158,11,0.5); }
+    .p3 { background: #eab308; box-shadow: 0 0 4px rgba(234,179,8,0.3); }
+    .p4 { background: var(--success); box-shadow: 0 0 4px rgba(16,185,129,0.3); }
     .p5 { background: var(--text-faint); }
 
-    .quick-add { display: flex; gap: 8px; padding: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; margin-top: 4px; }
+    .quick-add { display: flex; gap: 8px; padding: 8px; background: rgba(18,13,36,0.6); border: 1px solid var(--border); border-radius: 10px; margin-top: 4px; }
     .quick-add input { flex: 1; background: transparent; border: none; outline: none; color: var(--text); font-size: 12px; }
     .quick-add input::placeholder { color: var(--text-faint); }
 
-    .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--surface); border: 1px solid var(--accent); padding: 10px 18px; border-radius: 12px; z-index: 1000; font-size: 13px; box-shadow: 0 4px 24px rgba(0,0,0,0.4); display: none; }
-    .toast.show { display: flex; align-items: center; gap: 8px; animation: fadeIn 0.2s ease-out; }
-    @keyframes fadeIn { from { opacity: 0; transform: translateX(-50%) translateY(8px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+    .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--surface); border: 1px solid var(--accent); padding: 12px 20px; border-radius: 14px; z-index: 1000; font-size: 13px; box-shadow: 0 8px 32px rgba(0,0,0,0.5), 0 0 20px rgba(139,92,246,0.1); display: none; }
+    .toast.show { display: flex; align-items: center; gap: 8px; animation: toastIn 0.3s ease-out; }
+    @keyframes toastIn { from { opacity: 0; transform: translateX(-50%) translateY(12px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
 
     .empty-state { padding: 32px 16px; text-align: center; color: var(--text-dim); font-size: 13px; }
+
+    .fab { position: fixed; bottom: 22px; right: 22px; z-index: 40; width: 52px; height: 52px; border-radius: 50%; background: linear-gradient(135deg, #8b5cf6, #a855f7); color: white; font-size: 26px; border: none; cursor: pointer; box-shadow: 0 4px 20px rgba(139,92,246,0.4); transition: all 0.3s; display: flex; align-items: center; justify-content: center; }
+    .fab:hover { transform: scale(1.08) rotate(90deg); box-shadow: 0 6px 30px rgba(139,92,246,0.6); }
+    .fab:active { transform: scale(0.95); }
 
     @media (max-width: 768px) {
       .board { flex-direction: column; }
       .column { min-width: unset; max-width: unset; }
+      .header { padding: 10px 14px; }
+      .controls { padding: 8px 14px; }
     }
   </style>
 </head>
@@ -84,14 +124,17 @@
 
 <header class="header">
   <div class="header-inner">
-    <div class="flex items-center gap-3">
+    <div class="brand">
       <span class="brand-text">Canvas</span>
-      <span class="brand-sub">AETHER EDITION</span>
-      <div class="w-2 h-2 rounded-full bg-[var(--accent)]" style="width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 6px var(--accent)"></div>
+      <span class="brand-sub">AETHER</span>
+      <div style="width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 10px var(--accent)"></div>
     </div>
     <div class="flex items-center gap-2">
       <button class="btn" onclick="openArchive()">🗄️ ארכיון</button>
-      <span style="font-size:12px;color:var(--text-dim)">📅 <span id="today-date"></span></span>
+      <span style="font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:4px">
+        <i data-lucide="calendar" style="width:14px;height:14px"></i>
+        <span id="today-date"></span>
+      </span>
     </div>
   </div>
 </header>
@@ -103,16 +146,14 @@
   <button class="chip" data-filter="personal" onclick="setFilter('personal',this)">🏠 אישית</button>
   <span style="color:var(--text-faint)">|</span>
   <button class="chip" id="archive-chip" onclick="openArchive()">🗄️ ארכיון</button>
-  <span style="color:var(--text-faint)">|</span>
-  <button class="chip" id="remind-all-chip" onclick="showAllReminders()">⏰ תזכורות</button>
 </div>
 
 <div class="board" id="board"></div>
 
 <!-- Archive Overlay -->
-<div id="archive-overlay" style="display:none;position:fixed;inset:0;z-index:100;background:rgba(0,0,0,0.7);align-items:center;justify-content:center">
-  <div style="background:var(--bg);border:1px solid var(--border);border-radius:16px;padding:24px;max-width:600px;width:90%;max-height:80vh;overflow-y:auto">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+<div id="archive-overlay" style="display:none;position:fixed;inset:0;z-index:100;background:rgba(0,0,0,0.75);align-items:center;justify-content:center;backdrop-filter:blur(8px)">
+  <div style="background:var(--bg);border:1px solid var(--border);border-radius:20px;padding:28px;max-width:600px;width:90%;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.5)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
       <h2 style="font-size:18px;font-weight:700">🗄️ ארכיון</h2>
       <button class="btn" onclick="closeArchive()">✕ סגור</button>
     </div>
@@ -121,8 +162,8 @@
 </div>
 
 <!-- Reminder Modal -->
-<div id="remind-modal" style="display:none;position:fixed;inset:0;z-index:100;background:rgba(0,0,0,0.7);align-items:center;justify-content:center">
-  <div style="background:var(--bg);border:1px solid var(--border);border-radius:16px;padding:24px;max-width:380px;width:90%">
+<div id="remind-modal" style="display:none;position:fixed;inset:0;z-index:100;background:rgba(0,0,0,0.75);align-items:center;justify-content:center;backdrop-filter:blur(8px)">
+  <div style="background:var(--bg);border:1px solid var(--border);border-radius:20px;padding:28px;max-width:380px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.5)">
     <h2 style="font-size:16px;font-weight:700;margin-bottom:4px">🔔 תזכורת</h2>
     <p id="remind-task-name" style="font-size:13px;color:var(--text-muted);margin-bottom:20px"></p>
     <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px">
@@ -146,14 +187,15 @@
 <input type="hidden" id="remind-card-id">
 
 <div class="toast" id="toast">
-  <span>✓</span><span id="toast-msg"></span>
+  <i data-lucide="check-circle" style="width:16px;height:16px;color:var(--accent-hover)"></i>
+  <span id="toast-msg"></span>
 </div>
 
-<div style="position:fixed;bottom:16px;right:16px;z-index:40">
-  <button onclick="quickAddMobile()" class="btn active" style="width:48px;height:48px;border-radius:50%;font-size:24px;justify-content:center;padding:0;box-shadow:0 4px 12px rgba(139,92,246,0.3)">+</button>
-</div>
+<button class="fab" onclick="quickAddMobile()">+</button>
 
 <script>
+lucide.createIcons();
+
 const API = '/api';
 let boardData = { columns: [] };
 let activeFilter = 'all';
@@ -203,8 +245,9 @@ function render() {
   
   board.innerHTML = cols.map(col => {
     const cards = col.cards.filter(match);
+    const isDone = col.id === 'done';
     return `
-      <div class="column">
+      <div class="column" style="${isDone ? 'opacity:0.65' : ''}">
         <div class="col-title">
           <span>${col.title}</span>
           <span class="col-count">${cards.length}</span>
@@ -214,7 +257,7 @@ function render() {
              ondragleave="this.classList.remove('drop-active')"
              ondrop="handleDrop(event,'${col.id}')">
           ${cards.length ? [...cards].reverse().map(c => `
-            <div class="card" draggable="true" data-id="${c.id}"
+            <div class="card" draggable="true" data-id="${c.id}" ${isDone ? 'style="opacity:0.6"' : ''}
                  ondragstart="event.dataTransfer.setData('text/plain','${c.id}');this.classList.add('dragging')"
                  ondragend="this.classList.remove('dragging')">
               <div class="priority-dot p${c.priority||3}"></div>
@@ -227,26 +270,29 @@ function render() {
               <div class="card-actions">
                 <button class="action-btn" onclick="event.stopPropagation();addNote('${c.id}')">💬</button>
                 <button class="action-btn" onclick="event.stopPropagation();editCard('${c.id}')">✎</button>
-                <button class="action-btn remind-btn" onclick="event.stopPropagation();remindMe('${c.id}')">🔔</button>
-                <button class="action-btn done-btn" onclick="event.stopPropagation();markDone('${c.id}')">✅</button>
+                ${!isDone ? `<button class="action-btn remind-btn" onclick="event.stopPropagation();remindMe('${c.id}')">🔔</button>` : ''}
+                ${!isDone ? `<button class="action-btn done-btn" onclick="event.stopPropagation();markDone('${c.id}')">✅</button>` : ''}
                 <button class="action-btn danger" onclick="event.stopPropagation();deleteCard('${c.id}')">✕</button>
               </div>
             </div>
           `).join('') : '<div class="empty-state">—</div>'}
         </div>
+        ${!isDone ? `
         <div class="quick-add">
           <span style="color:var(--text-faint)">+</span>
           <input type="text" placeholder="הוסף..." onkeydown="if(event.key==='Enter')addCard('${col.id}',this)">
-        </div>
+        </div>` : ''}
       </div>`;
   }).join('');
+  
+  lucide.createIcons();
 }
 
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 function linkify(text) {
   text = esc(text);
-  return text.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" onclick="event.stopPropagation()">🔗 קישור</a>');
+  return text.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" onclick="event.stopPropagation()" style="display:inline-flex;align-items:center;gap:3px;color:var(--accent-hover);text-underline-offset:2px">🔗</a>');
 }
 
 async function addCard(colId, input) {
@@ -350,7 +396,7 @@ async function openArchive() {
     const cards = data.archived || [];
     if (!cards.length) { list.innerHTML = '<div class="empty-state">אין משימות בארכיון</div>'; return; }
     list.innerHTML = cards.map(c => `
-      <div style="padding:12px;background:var(--surface);border:1px solid var(--border);border-radius:10px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
+      <div style="padding:12px;background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
         <div>
           <div style="color:var(--text);font-size:14px">${esc(c.content)}</div>
           <div style="color:var(--text-dim);font-size:11px;margin-top:4px">
@@ -379,18 +425,12 @@ function quickAddMobile() {
   fetch(API+'/cards',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:t,column_id:'backlog'})}).then(()=>{fetchBoard();toast('✅ נוסף');});
 }
 
-function showAllReminders() {
-  const all = boardData.columns.flatMap(c=>c.cards).filter(c=>!c.archived && c.id !== 'done');
-  if (!all.length) { toast('אין משימות'); return; }
-  const recent = all.slice(-5).reverse().map(c=>'🔔 ' + c.content.substring(0,60)).join('\n');
-  alert('5 המשימות האחרונות:\n\n' + (recent || 'אין'));
-}
-
 function toast(msg) {
   const t = document.getElementById('toast');
   document.getElementById('toast-msg').textContent = msg;
   t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 2000);
+  lucide.createIcons();
+  setTimeout(() => t.classList.remove('show'), 2200);
 }
 
 init();
