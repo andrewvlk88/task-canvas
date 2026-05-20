@@ -117,7 +117,29 @@
       .column { min-width: unset; max-width: unset; }
       .header { padding: 10px 14px; }
       .controls { padding: 8px 14px; }
+      .cli-bar { padding: 8px 12px; }
     }
+
+    /* CLI Command Bar */
+    .cli-bar {
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 45;
+      background: #0d0d11; border-top: 1px solid #2a2a35;
+      padding: 10px 18px; display: flex; align-items: center; gap: 10px;
+      font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+    }
+    .cli-prompt { color: #8b5cf6; font-weight: 700; font-size: 14px; user-select: none; }
+    .cli-input {
+      flex: 1; background: transparent; border: none; outline: none;
+      color: #e0e0e0; font-size: 13px; font-family: inherit;
+      caret-color: #8b5cf6;
+    }
+    .cli-input::placeholder { color: #4a4366; }
+    .cli-hint { font-size: 10px; color: #4a4366; white-space: nowrap; }
+    .cli-status { font-size: 11px; color: #6b648c; min-width: 100px; text-align: right; }
+    .cli-status.ok { color: #10B981; }
+    .cli-status.err { color: #EF4444; }
+    .cli-spinner { display: none; width: 12px; height: 12px; border: 2px solid #2a2a35; border-top-color: #8b5cf6; border-radius: 50%; animation: spin 0.7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
@@ -192,6 +214,17 @@
 </div>
 
 <button class="fab" onclick="quickAddMobile()">+</button>
+
+<!-- CLI Command Bar -->
+<div class="cli-bar" id="cli-bar">
+  <span class="cli-prompt">$</span>
+  <div class="cli-spinner" id="cli-spinner"></div>
+  <input type="text" class="cli-input" id="cli-input"
+         placeholder="הקלד פקודה... (archive done, move p1 to today, add call dentist tomorrow)"
+         onkeydown="handleCliKey(event)">
+  <span class="cli-hint">Enter ⏎</span>
+  <span class="cli-status" id="cli-status"></span>
+</div>
 
 <script>
 lucide.createIcons();
@@ -419,11 +452,58 @@ async function restoreArchived(id) {
   toast('🔄 שוחזר');
 }
 
-function quickAddMobile() {
+async function quickAddMobile() {
   const t = prompt('מה להוסיף?');
   if (!t) return;
   fetch(API+'/cards',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:t,column_id:'backlog'})}).then(()=>{fetchBoard();toast('✅ נוסף');});
 }
+
+// ───── CLI Command Bar ─────
+async function handleCliKey(e) {
+  if (e.key !== 'Enter') return;
+  const input = document.getElementById('cli-input');
+  const cmd = input.value.trim();
+  if (!cmd) return;
+  input.value = '';
+  await runCliCommand(cmd);
+}
+
+async function runCliCommand(cmd) {
+  const spinner = document.getElementById('cli-spinner');
+  const status = document.getElementById('cli-status');
+  spinner.style.display = 'block';
+  status.textContent = '';
+  status.className = 'cli-status';
+
+  try {
+    const r = await fetch(API+'/command', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({command: cmd})
+    });
+    const data = await r.json();
+    status.textContent = data.result || '✓';
+    status.className = 'cli-status ' + (data.ok ? 'ok' : 'err');
+    await fetchBoard();
+  } catch(e) {
+    status.textContent = '❌ ' + e.message;
+    status.className = 'cli-status err';
+  }
+  spinner.style.display = 'none';
+  setTimeout(() => { status.textContent = ''; }, 5000);
+}
+
+// Global keyboard shortcuts
+document.addEventListener('keydown', function(e) {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+    e.preventDefault();
+    document.getElementById('cli-input').focus();
+  }
+  if (e.key === '/' && !e.target.closest('input')) {
+    e.preventDefault();
+    document.getElementById('cli-input').focus();
+  }
+});
 
 function toast(msg) {
   const t = document.getElementById('toast');

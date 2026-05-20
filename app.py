@@ -6,6 +6,7 @@ Task Canvas — Kanban Board (5 columns, tags, RTL) with subtasks, priority, lin
 import json
 import os
 import re
+import subprocess
 from datetime import datetime
 from functools import wraps
 from pathlib import Path
@@ -609,30 +610,76 @@ def ai_breakdown(card_id: str):
 # ---------- TT Webhook (Telegram → Task) ----------
 @app.route("/api/tt", methods=["POST"])
 def tt_webhook():
-    """Receives {content, auth_token} and adds to backlog. No auth required — uses shared token."""
+    """Receives {content, auth_token} and adds via Smart Triage. No auth required — uses shared token."""
     body = request.get_json(silent=True) or {}
     content = body.get("content", "").strip()
     token = body.get("auth_token", "")
     if token != PASSWORD or not content:
         return jsonify({"ok": False, "error": "unauthorized or empty"}), 403
 
+    # Try LLM triage first, fallback to keyword
+    triage = _llm_triage(content)
+
     data = load_tasks()
-    tag = detect_tag(content)
-    priority = detect_priority(content)
     card = {
         "id": f"card-{datetime.now().strftime('%Y%m%d-%H%M%S-%f')}",
-        "content": content, "tag": tag, "priority": priority,
-        "subtasks": [], "links": [], "due_date": None, "recurring": None,
+        "content": content,
+        "tag": triage["tag"],
+        "priority": triage["priority"],
+        "subtasks": [], "links": [],
+        "due_date": triage.get("due_date"),
+        "recurring": None,
         "created_at": datetime.now().isoformat(),
         "updated_at": datetime.now().isoformat(),
+        "triage_source": triage.get("source", "keyword"),
     }
+    target_column = triage["column"]
     for col in data["columns"]:
-        if col["id"] == "backlog":
+        if col["id"] == target_column:
             col["cards"].append(card)
             break
+    else:
+        data["columns"][0]["cards"].append(card)
     save_tasks(data)
     sync_json_to_md()
     return jsonify({"ok": True, "card": card})
+
+
+def _llm_triage(content: str) -> dict:
+    """Run LLM classification; fallback to keyword if Hermes fails."""
+    try:
+        prompt = f"""You are Andrew's task classifier. Classify this Hebrew task:
+
+Task: {content}
+
+Andrew: works at Rubrik (cyber/cloud data protection), lives in Rosh HaAyin, wife Liron, kids Ari (5.5) and Adam (2.5).
+Return ONLY a JSON object with these fields (no other text):
+{{"tag": "עבודה"|"אישית"|"", "priority": 1-5, "column": "backlog"|"week"|"inprogress"|"waiting", "due_date": "YYYY-MM-DD or null"}}
+
+Classification rules:
+- Rubrik, clients, vendors, tech → "עבודה", P2
+- Family, home, kids, errands, health → "אישית", P2-P3
+- "דחוף", "חירום", "ASAP", "עד מחר", "הבוקר" → P1, column "inprogress"
+- Date mentioned → set due_date; "השבוע" → column "week"
+- Default → column "backlog", P3
+"""
+        result = subprocess.run(
+            ["hermes", "--oneshot", prompt],
+            capture_output=True, text=True, timeout=30,
+            env={**os.environ, "HERMES_ACCEPT_HOOKS": "1"}
+        )
+        output = result.stdout.strip()
+        json_start = output.find("{")
+        json_end = output.rfind("}") + 1
+        if json_start >= 0 and json_end > json_start:
+            triage = json.loads(output[json_start:json_end])
+            triage["source"] = "llm"
+            return triage
+    except Exception:
+        pass
+    # Fallback
+    return {"tag": detect_tag(content), "priority": detect_priority(content),
+            "column": smart_fallback(content)["column"], "due_date": None, "source": "keyword"}
 
 
 # ---------- Smart Archive ----------
@@ -980,6 +1027,150 @@ def update_sports():
     with open(SPORTS_FILE, "w", encoding="utf-8") as f:
         json.dump(body, f, ensure_ascii=False, indent=2)
     return jsonify({"ok": True})
+
+
+# ───── CLI Command ─────
+@app.route("/api/command", methods=["POST"])
+@require_auth
+def cli_command():
+    """שורת פקודה חיה — Hermes מבצע את הפקודה על ה-Kanban."""
+    body = request.get_json(silent=True) or {}
+    command = body.get("command", "").strip()
+    if not command:
+        return jsonify({"error": "command required"}), 400
+
+    # Build a one-shot prompt for Hermes
+    prompt = f"""You are a Kanban board operator. The board is at /home/andrew/.hermes/tasks.json.
+The API is at http://localhost:5050/api with auth 'andrew:hermes666'.
+
+Execute the user's command by making API calls. When done, print ONLY "OK: <brief Hebrew summary>".
+
+Command: {command}
+
+Rules:
+- Use curl -u andrew:hermes666 for API calls
+- Column IDs: backlog, week, inprogress, waiting, done
+- Priority: 1 (highest) to 5 (lowest)
+- Tags: "עבודה" or "אישית"
+- Never ask for confirmation — just execute
+- Print ONLY "OK: <summary>" when done
+"""
+
+    try:
+        result = subprocess.run(
+            ["hermes", "--oneshot", prompt],
+            capture_output=True, text=True, timeout=120,
+            env={**os.environ, "HERMES_ACCEPT_HOOKS": "1"}
+        )
+        output = result.stdout.strip() or result.stderr.strip()
+        # Extract the OK: line
+        ok_line = ""
+        for line in output.split("\n"):
+            if line.startswith("OK:"):
+                ok_line = line
+                break
+        if not ok_line:
+            ok_line = output[:150]
+        return jsonify({"ok": True, "result": ok_line})
+    except subprocess.TimeoutExpired:
+        return jsonify({"ok": False, "result": "⏰ הפקודה לקחה יותר מדי זמן"}), 504
+    except Exception as e:
+        return jsonify({"ok": False, "result": f"❌ {str(e)[:100]}"}), 500
+
+
+# ───── Smart Triage ─────
+@app.route("/api/cards/smart-add", methods=["POST"])
+@require_auth
+def smart_add():
+    """LLM סיווג חכם — מנתח תוכן ומחליט תגית, עדיפות ועמודה."""
+    body = request.get_json(silent=True) or {}
+    content = body.get("content", "").strip()
+    if not content:
+        return jsonify({"error": "content is required"}), 400
+    column_id = body.get("column_id", "backlog")
+
+    # Let Hermes classify the task
+    prompt = f"""You are Andrew's task classifier. Classify this Hebrew task:
+
+Task: {content}
+
+Andrew: works at Rubrik (cyber/cloud data protection), lives in Rosh HaAyin, wife Liron, kids Ari (5.5) and Adam (2.5).
+Return ONLY a JSON object with these fields (no other text):
+{{"tag": "עבודה"|"אישית"|"", "priority": 1-5, "column": "backlog"|"week"|"inprogress"|"waiting", "due_date": "YYYY-MM-DD or null"}}
+
+Classification rules:
+- Rubrik, clients, vendors, tech → "עבודה", P2
+- Family, home, kids, errands, health → "אישית", P2-P3
+- "דחוף", "חירום", "ASAP", "עד מחר", "הבוקר" → P1, column "inprogress"
+- Date mentioned (e.g. "ביום שלישי", "מחר", "10/06") → set due_date
+- "השבוע" → column "week"
+- "צריך לבדוק", "להתקשר", "לשלוח" → column "inprogress" if urgent, else "week"
+- Default → column "backlog", P3
+"""
+
+    try:
+        result = subprocess.run(
+            ["hermes", "--oneshot", prompt],
+            capture_output=True, text=True, timeout=60,
+            env={**os.environ, "HERMES_ACCEPT_HOOKS": "1"}
+        )
+        output = result.stdout.strip()
+        # Extract the JSON object from output
+        json_start = output.find("{")
+        json_end = output.rfind("}") + 1
+        if json_start >= 0 and json_end > json_start:
+            triage = json.loads(output[json_start:json_end])
+        else:
+            # Fallback: keyword-based classification
+            triage = smart_fallback(content)
+
+        # Apply triage results
+        tag = triage.get("tag") or detect_tag(content)
+        priority = triage.get("priority") or detect_priority(content)
+        target_column = triage.get("column", column_id)
+        due_date = triage.get("due_date")
+
+        card = {
+            "id": f"card-{datetime.now().strftime('%Y%m%d-%H%M%S-%f')}",
+            "content": content,
+            "tag": tag,
+            "priority": int(priority),
+            "subtasks": [],
+            "links": [],
+            "due_date": due_date,
+            "recurring": None,
+            "created_at": datetime.now().isoformat(),
+            "updated_at": datetime.now().isoformat(),
+            "triage_source": "llm" if json_start >= 0 else "fallback",
+        }
+
+        data = load_tasks()
+        for col in data["columns"]:
+            if col["id"] == target_column:
+                col["cards"].append(card)
+                break
+        else:
+            data["columns"][0]["cards"].append(card)  # backlog as safety
+
+        save_tasks(data)
+        sync_json_to_md()
+        return jsonify({"ok": True, "card": card})
+    except Exception as e:
+        # Fallback to basic add
+        return add_card()
+
+
+def smart_fallback(content: str) -> dict:
+    """Keyword-based fallback when LLM fails."""
+    c = content.lower()
+    tag = detect_tag(content)
+    priority = detect_priority(content)
+    column = "backlog"
+    if any(k in c for k in ["דחוף", "asap", "עכשיו", "בוקר", "הלילה", "חירום"]):
+        column = "inprogress"
+    elif any(k in c for k in ["השבוע", "מחר", "שלישי", "רביעי", "חמישי", "שישי"]):
+        column = "week"
+    return {"tag": tag, "priority": priority, "column": column, "due_date": None}
 
 
 if __name__ == "__main__":
