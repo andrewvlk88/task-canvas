@@ -780,49 +780,48 @@ def _send_telegram_now(text: str):
 
 
 def _schedule_reminder(text: str, send_at: datetime, card_id: str):
-    """Schedules a one-shot cron job for the reminder."""
-    import subprocess, sys, os
-    timestamp = send_at.strftime("%Y-%m-%dT%H:%M:%S")
-    escaped_text = text.replace("'", "'\\''")
-    script = f"""#!/bin/bash
-python3 -c '
-import urllib.request, json, os
-bot_token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
-chat_id = "359802219"
-text = """ + f"'{escaped_text}'" + """
-url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-payload = json.dumps({"chat_id": chat_id, "text": text, "parse_mode": "HTML"}).encode()
-req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
-try:
-    resp = urllib.request.urlopen(req, timeout=10)
-except:
-    pass
-'
-"""
-    script_path = Path.home() / ".hermes" / "scripts" / f"remind_{card_id}_{send_at.strftime('%Y%m%d_%H%M%S')}.sh"
-    script_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(script_path, "w") as f:
-        f.write(script)
-    script_path.chmod(0o755)
+    """Schedules a one-shot cron job for the reminder using the native cronjob tool."""
+    import http.client, json, os
 
-    # Use hermes cron command to schedule
+    timestamp = send_at.strftime("%Y-%m-%dT%H:%M:%S")
+    schedule_str = send_at.isoformat(timespec="seconds")
+
+    # Build the cron prompt — the cron agent just needs to send the text
+    prompt = f"Send this exact message to Andrew via Telegram: '{text}'"
+
+    # Use the native Hermes gateway to create a cron job
+    # POST directly to the gateway API so Hebrew survives
+    gateway_port = os.environ.get("HERMES_GATEWAY_PORT", "9119")
     try:
-        schedule_str = send_at.isoformat(timespec="seconds")
+        conn = http.client.HTTPConnection("127.0.0.1", gateway_port.split(":")[-1] if ":" in gateway_port else gateway_port, timeout=10)
+        payload = json.dumps({
+            "action": "create",
+            "schedule": schedule_str,
+            "prompt": prompt,
+            "name": f"remind-{card_id[:20]}",
+            "repeat": 1,
+            "deliver": "origin"
+        })
+        conn.request("POST", "/api/cronjob", body=payload, headers={"Content-Type": "application/json"})
+        resp = conn.getresponse()
+        if resp.status == 200:
+            return jsonify({"ok": True, "reminder": text, "sent": False, "scheduled": timestamp})
+    except Exception:
+        pass
+
+    # Last resort: try CLI
+    try:
         subprocess.run(
             ["hermes", "cron", "create",
-             "--name", f"remind-{card_id}",
              "--schedule", schedule_str,
-             "--prompt", f"שלח תזכורת: {text}",
-             "--deliver", "telegram:359802219",
-             "--repeat", "1",
-             "--skills", "[]",
-             "--enabled-toolsets", '["web"]'],
+             "--prompt", prompt,
+             "--deliver", "origin",
+             "--repeat", "1"],
             capture_output=True, timeout=15, env={**os.environ}
         )
         return jsonify({"ok": True, "reminder": text, "sent": False, "scheduled": timestamp})
     except Exception as e:
-        # Fallback: return with scheduled info
-        return jsonify({"ok": True, "reminder": text, "sent": False, "scheduled": timestamp, "error": str(e)})
+        return jsonify({"ok": False, "reminder": text, "error": f"Failed to schedule: {str(e)[:80]}"})
 
 
 # ---------- Eisenhower Matrix ----------
