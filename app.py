@@ -24,11 +24,15 @@ if env_path.exists():
                     os.environ[key] = val.strip().strip('"').strip("'")
 
 import analytics_utils
+from db import (
+    init_db, get_all_cards, migrate_from_json, decay_priorities,
+    insert_card, update_card, delete_card as db_delete_card, move_card_to_column, get_archived_cards,
+)
 from flask import Flask, Response, jsonify, render_template, request
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 
-TASKS_FILE = Path.home() / ".hermes" / "tasks.json"
+TASKS_FILE = Path.home() / ".hermes" / "tasks.json"  # legacy — migrated to SQLite
 USERNAME = os.environ.get("CANVAS_USER", "andrew")
 PASSWORD = os.environ.get("CANVAS_PASS", "hermes666")
 
@@ -57,73 +61,58 @@ def require_auth(f):
 
 
 # ----------------------- data -----------------------
-DEFAULT_COLUMNS = [
-    {"id": "backlog", "title": "📚 Backlog", "cards": []},
-    {"id": "week", "title": "📅 משימות השבוע", "cards": []},
-    {"id": "inprogress", "title": "🚀 In Progress", "cards": []},
-    {"id": "waiting", "title": "⏳ במעקב", "cards": []},
-    {"id": "done", "title": "✅ Done", "cards": []},
-]
+COLUMN_TITLES = {
+    "backlog": "📚 Backlog",
+    "week": "📅 משימות השבוע",
+    "inprogress": "🚀 In Progress",
+    "waiting": "⏳ במעקב",
+    "done": "✅ Done",
+}
 
 
 def load_tasks() -> Dict[str, Any]:
-    if not TASKS_FILE.exists():
-        return {"columns": DEFAULT_COLUMNS}
-    with open(TASKS_FILE, "r", encoding="utf-8") as f:
-        data = json.load(f)
-    # migrate old 3-col boards (only if fewer than 5 columns)
-    if len(data.get("columns", [])) < 5:
-        old_cards = []
-        for col in data.get("columns", []):
-            old_cards.extend(col.get("cards", []))
-        data["columns"] = DEFAULT_COLUMNS
-        data["columns"][0]["cards"] = old_cards
-    # ensure each card has new fields
-    for col in data["columns"]:
-        for card in col["cards"]:
-            card.setdefault("tag", "")
-            card.setdefault("priority", 3)
-            card.setdefault("subtasks", [])
-            card.setdefault("links", [])
-            card.setdefault("due_date", None)
-            card.setdefault("recurring", None)
-            card.setdefault("created_at", datetime.now().isoformat())
-            card.setdefault("updated_at", datetime.now().isoformat())
-            card.setdefault("decayed", False)
+    from db import column_order
 
-    # Priority Decay: P1 cards older than 72 hours → P2
-    now = datetime.now()
-    decayed_any = False
-    for col in data["columns"]:
-        for card in col["cards"]:
-            if card.get("priority") == 1 and not card.get("decayed"):
-                created = datetime.fromisoformat(card.get("created_at", now.isoformat()))
-                if col["id"] != "done" and (now - created).total_seconds() > 72 * 3600:
-                    card["priority"] = 2
-                    card["decayed"] = True
-                    card["updated_at"] = now.isoformat()
-                    decayed_any = True
-    if decayed_any:
-        with open(TASKS_FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-    return data
+    init_db()
+
+    # one-time migration from JSON (only if db is empty)
+    from db import get_db
+    conn = get_db()
+    count = conn.execute("SELECT COUNT(*) FROM tasks").fetchone()[0]
+    conn.close()
+    if count == 0 and TASKS_FILE.exists():
+        migrate_from_json(TASKS_FILE)
+
+    decay_priorities()
+    cards = get_all_cards()
+
+    columns = []
+    for cid in column_order():
+        columns.append({
+            "id": cid,
+            "title": COLUMN_TITLES.get(cid, cid),
+            "cards": cards.get(cid, []),
+        })
+    return {"columns": columns}
 
 
 def save_tasks(data: Dict[str, Any]) -> None:
-    TASKS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with open(TASKS_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
+    """No-op: all mutations now write directly to db via update_card/insert_card etc.
+    Kept for backward compatibility with routes that still call it."""
+    pass
 
 
 TASKS_MD = Path.home() / ".hermes" / "tasks.md"
 
 
 def sync_json_to_md() -> None:
-    data = load_tasks()
+    from db import get_all_cards, column_order
+    cards = get_all_cards()
     lines = ["# 📋 Andrew's Tasks\n"]
-    for col in data.get("columns", []):
-        lines.append(f"\n## {col['title']}\n")
-        for task in col.get("cards", []):
+    for cid in column_order():
+        title = COLUMN_TITLES.get(cid, cid)
+        lines.append(f"\n## {title}\n")
+        for task in cards.get(cid, []):
             tag = task.get("tag", "")
             tag_str = f" `[{tag}]`" if tag else ""
             prio = task.get("priority", 3)
@@ -257,7 +246,6 @@ def get_board():
 @app.route("/api/cards", methods=["POST"])
 @require_auth
 def add_card():
-    data = load_tasks()
     body = request.get_json(silent=True) or {}
     content: str = body.get("content", "").strip()
     column_id: str = body.get("column_id", "backlog")
@@ -266,14 +254,15 @@ def add_card():
 
     tag = body.get("tag") or detect_tag(content)
     priority = body.get("priority") or detect_priority(content)
-    # support subtasks, links, due_date, recurring from body
     subtasks: List[Dict] = body.get("subtasks", [])
     links: List[str] = body.get("links", [])
     due_date: Optional[str] = body.get("due_date")
     recurring: Optional[str] = body.get("recurring")
 
+    now = datetime.now()
     card = {
-        "id": f"card-{datetime.now().strftime('%Y%m%d-%H%M%S-%f')}",
+        "id": f"card-{now.strftime('%Y%m%d-%H%M%S-%f')}",
+        "column_id": column_id,
         "content": content,
         "tag": tag,
         "priority": priority,
@@ -281,16 +270,10 @@ def add_card():
         "links": links,
         "due_date": due_date,
         "recurring": recurring,
-        "created_at": datetime.now().isoformat(),
-        "updated_at": datetime.now().isoformat(),
+        "created_at": now.isoformat(),
+        "updated_at": now.isoformat(),
     }
-
-    for col in data["columns"]:
-        if col["id"] == column_id:
-            col["cards"].append(card)
-            break
-
-    save_tasks(data)
+    insert_card(card)
     sync_json_to_md()
     return jsonify({"ok": True, "card": card})
 
@@ -298,24 +281,10 @@ def add_card():
 @app.route("/api/cards/<card_id>/move", methods=["POST"])
 @require_auth
 def move_card(card_id: str):
-    data = load_tasks()
     target_col = request.json.get("column_id")
-    found = None
-    for col in data["columns"]:
-        for card in col["cards"]:
-            if card["id"] == card_id:
-                found = card
-                col["cards"].remove(card)
-                break
-        if found:
-            break
-    if not found:
-        return jsonify({"error": "card not found"}), 404
-    for col in data["columns"]:
-        if col["id"] == target_col:
-            col["cards"].append(found)
-            break
-    save_tasks(data)
+    if not target_col:
+        return jsonify({"error": "column_id required"}), 400
+    move_card_to_column(card_id, target_col)
     sync_json_to_md()
     return jsonify({"ok": True})
 
@@ -323,10 +292,7 @@ def move_card(card_id: str):
 @app.route("/api/cards/<card_id>", methods=["DELETE"])
 @require_auth
 def delete_card(card_id: str):
-    data = load_tasks()
-    for col in data["columns"]:
-        col["cards"] = [c for c in col["cards"] if c["id"] != card_id]
-    save_tasks(data)
+    db_delete_card(card_id)
     sync_json_to_md()
     return jsonify({"ok": True})
 
@@ -334,53 +300,32 @@ def delete_card(card_id: str):
 @app.route("/api/cards/<card_id>/edit", methods=["POST"])
 @require_auth
 def edit_card(card_id: str):
-    data = load_tasks()
     new_content = request.json.get("content", "").strip()
     if not new_content:
         return jsonify({"error": "content is required"}), 400
-    for col in data["columns"]:
-        for card in col["cards"]:
-            if card["id"] == card_id:
-                card["content"] = new_content
-                # update tag/priority if not provided explicitly
-                if "tag" not in request.json:
-                    card["tag"] = detect_tag(new_content)
-                if "priority" not in request.json:
-                    card["priority"] = detect_priority(new_content)
-                card["updated_at"] = datetime.now().isoformat()
-                break
-    save_tasks(data)
+    updates = {"content": new_content}
+    if "tag" not in request.json:
+        updates["tag"] = detect_tag(new_content)
+    if "priority" not in request.json:
+        updates["priority"] = detect_priority(new_content)
+    update_card(card_id, updates)
     sync_json_to_md()
     return jsonify({"ok": True})
 
 @app.route("/api/cards/<card_id>/note", methods=["POST"])
 @require_auth
 def set_note(card_id: str):
-    data = load_tasks()
     note = request.json.get("note", "")
-    for col in data["columns"]:
-        for card in col["cards"]:
-            if card["id"] == card_id:
-                card["note"] = note
-                card["updated_at"] = datetime.now().isoformat()
-                save_tasks(data)
-                sync_json_to_md()
-                return jsonify({"ok": True})
-    return jsonify({"error": "card not found"}), 404
+    update_card(card_id, {"note": note})
+    sync_json_to_md()
+    return jsonify({"ok": True})
 
 
 @app.route("/api/cards/<card_id>/tag", methods=["POST"])
 @require_auth
 def set_tag(card_id: str):
-    data = load_tasks()
     tag = request.json.get("tag", "")
-    for col in data["columns"]:
-        for card in col["cards"]:
-            if card["id"] == card_id:
-                card["tag"] = tag
-                card["updated_at"] = datetime.now().isoformat()
-                break
-    save_tasks(data)
+    update_card(card_id, {"tag": tag})
     sync_json_to_md()
     return jsonify({"ok": True})
 
@@ -388,17 +333,10 @@ def set_tag(card_id: str):
 @app.route("/api/cards/<card_id>/priority", methods=["POST"])
 @require_auth
 def set_priority(card_id: str):
-    data = load_tasks()
     priority = request.json.get("priority")
     if priority is None or not (1 <= int(priority) <= 5):
         return jsonify({"error": "priority must be 1-5"}), 400
-    for col in data["columns"]:
-        for card in col["cards"]:
-            if card["id"] == card_id:
-                card["priority"] = int(priority)
-                card["updated_at"] = datetime.now().isoformat()
-                break
-    save_tasks(data)
+    update_card(card_id, {"priority": int(priority)})
     sync_json_to_md()
     return jsonify({"ok": True})
 
@@ -431,9 +369,8 @@ def add_subtask(card_id: str):
                     "content": content,
                     "done": False,
                 }
-                card.setdefault("subtasks", []).append(subtask)
-                card["updated_at"] = datetime.now().isoformat()
-                save_tasks(data)
+                updated_subtasks = card.get("subtasks", []) + [subtask]
+                update_card(card_id, {"subtasks": updated_subtasks})
                 sync_json_to_md()
                 return jsonify({"ok": True, "subtask": subtask})
     return jsonify({"error": "card not found"}), 404
@@ -449,8 +386,7 @@ def toggle_subtask(card_id: str, sub_id: str):
                 for sub in card.get("subtasks", []):
                     if sub["id"] == sub_id:
                         sub["done"] = not sub["done"]
-                        card["updated_at"] = datetime.now().isoformat()
-                        save_tasks(data)
+                        update_card(card_id, {"subtasks": card["subtasks"]})
                         sync_json_to_md()
                         return jsonify({"ok": True, "subtask": sub})
                 break
@@ -467,8 +403,7 @@ def delete_subtask(card_id: str, sub_id: str):
                 before = len(card.get("subtasks", []))
                 card["subtasks"] = [s for s in card.get("subtasks", []) if s["id"] != sub_id]
                 if len(card["subtasks"]) != before:
-                    card["updated_at"] = datetime.now().isoformat()
-                    save_tasks(data)
+                    update_card(card_id, {"subtasks": card["subtasks"]})
                     sync_json_to_md()
                     return jsonify({"ok": True})
                 break
@@ -484,15 +419,13 @@ def add_link(card_id: str):
     url: str = body.get("url", "").strip()
     if not url:
         return jsonify({"error": "url required"}), 400
-    # basic validation
     if not re.match(r"^https?://", url):
         url = "http://" + url
     for col in data["columns"]:
         for card in col["cards"]:
             if card["id"] == card_id:
-                card.setdefault("links", []).append(url)
-                card["updated_at"] = datetime.now().isoformat()
-                save_tasks(data)
+                updated_links = card.get("links", []) + [url]
+                update_card(card_id, {"links": updated_links})
                 sync_json_to_md()
                 return jsonify({"ok": True, "link": url})
     return jsonify({"error": "card not found"}), 404
@@ -512,8 +445,7 @@ def delete_link(card_id: str, link_idx: str):
                 links = card.get("links", [])
                 if 0 <= idx < len(links):
                     removed = links.pop(idx)
-                    card["updated_at"] = datetime.now().isoformat()
-                    save_tasks(data)
+                    update_card(card_id, {"links": links})
                     sync_json_to_md()
                     return jsonify({"ok": True, "removed": removed})
                 else:
@@ -525,34 +457,20 @@ def delete_link(card_id: str, link_idx: str):
 @app.route("/api/cards/<card_id>/due_date", methods=["POST"])
 @require_auth
 def set_due_date(card_id: str):
-    data = load_tasks()
-    due_date = request.json.get("due_date")  # expect ISO string or null
-    for col in data["columns"]:
-        for card in col["cards"]:
-            if card["id"] == card_id:
-                card["due_date"] = due_date
-                card["updated_at"] = datetime.now().isoformat()
-                save_tasks(data)
-                sync_json_to_md()
-                return jsonify({"ok": True, "due_date": due_date})
-    return jsonify({"error": "card not found"}), 404
+    due_date = request.json.get("due_date")
+    update_card(card_id, {"due_date": due_date})
+    sync_json_to_md()
+    return jsonify({"ok": True, "due_date": due_date})
 
 
 # ---------- Recurring ----------
 @app.route("/api/cards/<card_id>/recurring", methods=["POST"])
 @require_auth
 def set_recurring(card_id: str):
-    data = load_tasks()
-    recurring = request.json.get("recurring")  # e.g., "daily", "weekly", "weekdays", "monthly", "custom:MO,WE,FR"
-    for col in data["columns"]:
-        for card in col["cards"]:
-            if card["id"] == card_id:
-                card["recurring"] = recurring
-                card["updated_at"] = datetime.now().isoformat()
-                save_tasks(data)
-                sync_json_to_md()
-                return jsonify({"ok": True, "recurring": recurring})
-    return jsonify({"error": "card not found"}), 404
+    recurring = request.json.get("recurring")
+    update_card(card_id, {"recurring": recurring})
+    sync_json_to_md()
+    return jsonify({"ok": True, "recurring": recurring})
 
 
 # ---------- AI Breakdown ----------
@@ -598,9 +516,7 @@ def ai_breakdown(card_id: str):
     for col in data["columns"]:
         for card in col["cards"]:
             if card["id"] == card_id:
-                card["subtasks"] = subtasks
-                card["updated_at"] = now.isoformat()
-                save_tasks(data)
+                update_card(card_id, {"subtasks": subtasks})
                 sync_json_to_md()
                 return jsonify({"ok": True, "subtasks_added": len(subtasks), "subtasks": subtasks})
 
@@ -620,9 +536,9 @@ def tt_webhook():
     # Try LLM triage first, fallback to keyword
     triage = _llm_triage(content)
 
-    data = load_tasks()
     card = {
         "id": f"card-{datetime.now().strftime('%Y%m%d-%H%M%S-%f')}",
+        "column_id": triage["column"],
         "content": content,
         "tag": triage["tag"],
         "priority": triage["priority"],
@@ -633,14 +549,7 @@ def tt_webhook():
         "updated_at": datetime.now().isoformat(),
         "triage_source": triage.get("source", "keyword"),
     }
-    target_column = triage["column"]
-    for col in data["columns"]:
-        if col["id"] == target_column:
-            col["cards"].append(card)
-            break
-    else:
-        data["columns"][0]["cards"].append(card)
-    save_tasks(data)
+    insert_card(card)
     sync_json_to_md()
     return jsonify({"ok": True, "card": card})
 
@@ -687,20 +596,15 @@ Classification rules:
 @require_auth
 def smart_archive():
     """Archive Done cards older than 7 days. Keeps them in Done column but marks as archived."""
-    data = load_tasks()
+    cards = get_all_cards()
     now = datetime.now()
     archived = 0
-    for col in data["columns"]:
-        if col["id"] != "done":
-            continue
-        for card in col["cards"]:
-            created = datetime.fromisoformat(card.get("created_at", now.isoformat()))
-            if not card.get("archived") and (now - created).total_seconds() > 72 * 3600:
-                card["archived"] = True
-                card["updated_at"] = now.isoformat()
-                archived += 1
+    for card in cards.get("done", []):
+        created = datetime.fromisoformat(card.get("created_at", now.isoformat()))
+        if not card.get("archived") and (now - created).total_seconds() > 72 * 3600:
+            update_card(card["id"], {"archived": True})
+            archived += 1
     if archived > 0:
-        save_tasks(data)
         sync_json_to_md()
     return jsonify({"ok": True, "archived": archived})
 
@@ -829,18 +733,18 @@ def _schedule_reminder(text: str, send_at: datetime, card_id: str):
 @require_auth
 def eisenhower_data():
     """Returns tasks categorized by urgent/important based on priority + tag."""
-    data = load_tasks()
+    cards = get_all_cards()
     matrix = {
-        "urgent_important": [],       # P1, tag=עבודה
-        "not_urgent_important": [],   # P2, tag=עבודה
-        "urgent_not_important": [],   # P1, tag=אישית
-        "not_urgent_not_important": [],  # rest
+        "urgent_important": [],
+        "not_urgent_important": [],
+        "urgent_not_important": [],
+        "not_urgent_not_important": [],
     }
-    for col in data["columns"]:
-        if col["id"] == "done":
+    for cid, col_cards in cards.items():
+        if cid == "done":
             continue
-        for card in col["cards"]:
-            entry = {"id": card["id"], "content": card["content"], "col": col["id"],
+        for card in col_cards:
+            entry = {"id": card["id"], "content": card["content"], "col": cid,
                      "priority": card.get("priority", 3), "tag": card.get("tag", ""),
                      "created_at": card.get("created_at", "")}
             p = card.get("priority", 3)
@@ -861,27 +765,26 @@ def eisenhower_data():
 @require_auth
 def check_recurring():
     """Check if recurring tasks need to be re-added. Returns count of tasks re-added."""
+    cards = get_all_cards()
     count = 0
-    data = load_tasks()
     now = datetime.now()
     today_str = now.strftime("%Y-%m-%d")
-    weekday = now.strftime("%a").upper()[:2]  # MO, TU, etc.
+    weekday = now.strftime("%a").upper()[:2]
 
-    for col in data["columns"]:
-        for card in col["cards"]:
+    for cid, col_cards in cards.items():
+        for card in col_cards:
             recurring = card.get("recurring")
             if not recurring:
                 continue
-            # Check if already handled today
             last_check = card.get("last_recurring_check", "")
-            if last_check == today_str and col["id"] != "done":
+            if last_check == today_str and cid != "done":
                 continue
 
             should_repeat = False
             if recurring == "daily":
                 should_repeat = True
             elif recurring == "weekly":
-                should_repeat = (now.weekday() == 0)  # Monday
+                should_repeat = (now.weekday() == 0)
             elif recurring == "weekdays":
                 should_repeat = (now.weekday() < 5)
             elif recurring == "monthly":
@@ -891,30 +794,25 @@ def check_recurring():
                 should_repeat = (weekday in days)
 
             if should_repeat:
-                # Clone the card and add to backlog
                 new_card = {
                     "id": f"card-{now.strftime('%Y%m%d-%H%M%S-%f')}",
+                    "column_id": "backlog",
                     "content": card["content"],
                     "tag": card.get("tag", ""),
                     "priority": card.get("priority", 3),
                     "subtasks": [],
                     "links": [],
                     "due_date": None,
-                    "recurring": None,  # don't recurse
+                    "recurring": None,
                     "created_at": now.isoformat(),
                     "updated_at": now.isoformat(),
                 }
-                for c in data["columns"]:
-                    if c["id"] == "backlog":
-                        c["cards"].append(new_card)
-                        break
+                insert_card(new_card)
                 count += 1
 
-            card["last_recurring_check"] = today_str
-            card["updated_at"] = now.isoformat()
+            update_card(card["id"], {"note": f"last_recurring_check: {today_str}"})
 
     if count > 0:
-        save_tasks(data)
         sync_json_to_md()
     return jsonify({"ok": True, "recurring_added": count})
 
@@ -923,14 +821,13 @@ def check_recurring():
 @app.route("/api/auto-tag", methods=["POST"])
 @require_auth
 def auto_tag_all():
-    data = load_tasks()
+    cards = get_all_cards()
     count = 0
-    for col in data["columns"]:
-        for card in col["cards"]:
+    for cid, col_cards in cards.items():
+        for card in col_cards:
             if not card.get("tag"):
-                card["tag"] = detect_tag(card["content"])
+                update_card(card["id"], {"tag": detect_tag(card["content"])})
                 count += 1
-    save_tasks(data)
     sync_json_to_md()
     return jsonify({"ok": True, "tagged": count})
 
@@ -951,49 +848,26 @@ def archive_page():
 @app.route("/api/archived", methods=["GET"])
 @require_auth
 def get_archived():
-    data = load_tasks()
-    archived = []
-    for col in data["columns"]:
-        for card in col["cards"]:
-            if card.get("archived"):
-                archived.append({"id": card["id"], "content": card["content"],
-                    "tag": card.get("tag",""), "priority": card.get("priority",3),
-                    "created_at": card.get("created_at",""), "col": col["id"]})
-    return jsonify({"ok": True, "archived": archived})
+    archived = get_archived_cards()
+    result = [{"id": c["id"], "content": c["content"],
+               "tag": c.get("tag",""), "priority": c.get("priority",3),
+               "created_at": c.get("created_at",""), "col": c["column_id"]}
+              for c in archived]
+    return jsonify({"ok": True, "archived": result})
 
 @app.route("/api/archived/<card_id>/restore", methods=["POST"])
 @require_auth
 def restore_archived(card_id: str):
-    data = load_tasks()
-    for col in data["columns"]:
-        for card in col["cards"]:
-            if card["id"] == card_id:
-                card["archived"] = False
-                card["updated_at"] = datetime.now().isoformat()
-                # Move to backlog
-                for c in data["columns"]:
-                    if c["id"] == "backlog":
-                        c["cards"].append(card)
-                        col["cards"].remove(card)
-                        break
-                save_tasks(data)
-                sync_json_to_md()
-                return jsonify({"ok": True})
-    return jsonify({"error": "card not found"}), 404
+    update_card(card_id, {"archived": False, "column_id": "backlog"})
+    sync_json_to_md()
+    return jsonify({"ok": True})
 
 @app.route("/api/cards/<card_id>/archive", methods=["POST"])
 @require_auth
 def archive_card(card_id: str):
-    data = load_tasks()
-    for col in data["columns"]:
-        for card in col["cards"]:
-            if card["id"] == card_id:
-                card["archived"] = True
-                card["updated_at"] = datetime.now().isoformat()
-                save_tasks(data)
-                sync_json_to_md()
-                return jsonify({"ok": True})
-    return jsonify({"error": "card not found"}), 404
+    update_card(card_id, {"archived": True})
+    sync_json_to_md()
+    return jsonify({"ok": True})
 
 
 
@@ -1039,7 +913,7 @@ def cli_command():
         return jsonify({"error": "command required"}), 400
 
     # Build a one-shot prompt for Hermes
-    prompt = f"""You are a Kanban board operator. The board is at /home/andrew/.hermes/tasks.json.
+    prompt = f"""You are a Kanban board operator. The board uses SQLite at /home/andrew/.hermes/tasks.db.
 The API is at http://localhost:5050/api with auth 'andrew:hermes666'.
 
 Execute the user's command by making API calls. When done, print ONLY "OK: <brief Hebrew summary>".
@@ -1131,6 +1005,7 @@ Classification rules:
 
         card = {
             "id": f"card-{datetime.now().strftime('%Y%m%d-%H%M%S-%f')}",
+            "column_id": target_column,
             "content": content,
             "tag": tag,
             "priority": int(priority),
@@ -1143,15 +1018,7 @@ Classification rules:
             "triage_source": "llm" if json_start >= 0 else "fallback",
         }
 
-        data = load_tasks()
-        for col in data["columns"]:
-            if col["id"] == target_column:
-                col["cards"].append(card)
-                break
-        else:
-            data["columns"][0]["cards"].append(card)  # backlog as safety
-
-        save_tasks(data)
+        insert_card(card)
         sync_json_to_md()
         return jsonify({"ok": True, "card": card})
     except Exception as e:
