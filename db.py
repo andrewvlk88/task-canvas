@@ -61,7 +61,7 @@ def init_db() -> None:
 
 def column_order() -> List[str]:
     """Return column IDs in display order."""
-    return ["backlog", "week", "inprogress", "waiting", "done"]
+    return ["backlog", "week", "doing", "done"]
 
 
 def get_all_cards() -> Dict[str, List[Dict]]:

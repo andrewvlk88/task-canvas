@@ -64,9 +64,8 @@ def require_auth(f):
 # ----------------------- data -----------------------
 COLUMN_TITLES = {
     "backlog": "📚 Backlog",
-    "week": "📅 משימות השבוע",
-    "inprogress": "🚀 In Progress",
-    "waiting": "⏳ במעקב",
+    "week": "📅 השבוע",
+    "doing": "🚀 Doing",
     "done": "✅ Done",
 }
 
