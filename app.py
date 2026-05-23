@@ -27,6 +27,7 @@ import analytics_utils
 from db import (
     init_db, get_all_cards, migrate_from_json, decay_priorities,
     insert_card, update_card, delete_card as db_delete_card, move_card_to_column, get_archived_cards,
+    reorder_card,
 )
 from flask import Flask, Response, jsonify, render_template, request
 
@@ -282,9 +283,13 @@ def add_card():
 @require_auth
 def move_card(card_id: str):
     target_col = request.json.get("column_id")
+    target_pos = request.json.get("position")
     if not target_col:
         return jsonify({"error": "column_id required"}), 400
-    move_card_to_column(card_id, target_col)
+    if target_pos is not None:
+        reorder_card(card_id, target_col, int(target_pos))
+    else:
+        move_card_to_column(card_id, target_col)
     sync_json_to_md()
     return jsonify({"ok": True})
 
@@ -300,14 +305,26 @@ def delete_card(card_id: str):
 @app.route("/api/cards/<card_id>/edit", methods=["POST"])
 @require_auth
 def edit_card(card_id: str):
-    new_content = request.json.get("content", "").strip()
-    if not new_content:
-        return jsonify({"error": "content is required"}), 400
-    updates = {"content": new_content}
-    if "tag" not in request.json:
-        updates["tag"] = detect_tag(new_content)
-    if "priority" not in request.json:
-        updates["priority"] = detect_priority(new_content)
+    req_data = request.json or {}
+    updates = {}
+    if "content" in req_data:
+        new_content = req_data.get("content", "").strip()
+        if not new_content:
+            return jsonify({"error": "content cannot be empty"}), 400
+        updates["content"] = new_content
+        if "tag" not in req_data:
+            updates["tag"] = detect_tag(new_content)
+        if "priority" not in req_data:
+            updates["priority"] = detect_priority(new_content)
+            
+    # Support other fields as well for the single-save Card Modal
+    for field in ["tag", "priority", "note", "due_date", "recurring", "subtasks", "links"]:
+        if field in req_data:
+            updates[field] = req_data[field]
+            
+    if not updates:
+        return jsonify({"error": "no updates provided"}), 400
+        
     update_card(card_id, updates)
     sync_json_to_md()
     return jsonify({"ok": True})
@@ -489,8 +506,13 @@ def ai_breakdown(card_id: str):
                 break
         if card_content:
             break
+            
+    # Fallback to payload content if card not found or has empty text
+    if not card_content and request.json:
+        card_content = request.json.get("content", "").strip()
+        
     if not card_content:
-        return jsonify({"error": "card not found"}), 404
+        return jsonify({"error": "card content required"}), 404
 
     # Call the helper script
     helper_path = Path(__file__).parent / "ai_breakdown.py"
@@ -502,6 +524,7 @@ def ai_breakdown(card_id: str):
         subtask_texts = json.loads(result.stdout.strip())
     except Exception:
         # Fallback: naive comma split
+        import re
         parts = [p.strip() for p in re.split(r",|;|\\.|ואז", card_content) if p.strip()]
         subtask_texts = parts if len(parts) > 1 else [card_content]
 
@@ -512,7 +535,14 @@ def ai_breakdown(card_id: str):
         for i, t in enumerate(subtask_texts[:7])
     ]
 
-    # Replace existing subtasks
+    # If it is a preview, return immediately without saving
+    preview = False
+    if request.json:
+        preview = request.json.get("preview", False)
+    if preview:
+        return jsonify({"ok": True, "subtasks": subtasks})
+
+    # Replace existing subtasks in database
     for col in data["columns"]:
         for card in col["cards"]:
             if card["id"] == card_id:
