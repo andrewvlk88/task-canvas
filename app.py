@@ -113,8 +113,11 @@ def sync_json_to_md() -> None:
         title = COLUMN_TITLES.get(cid, cid)
         lines.append(f"\n## {title}\n")
         for task in cards.get(cid, []):
-            tag = task.get("tag", "")
-            tag_str = f" `[{tag}]`" if tag else ""
+            tags = task.get("tags", [])
+            if not tags:
+                tag = task.get("tag", "")
+                tags = [tag] if tag else []
+            tag_str = f" `[{', '.join(tags)}]`" if tags else ""
             prio = task.get("priority", 3)
             prio_map = {1: "🔴", 2: "🟠", 3: "🟡", 4: "🟢", 5: "⚪"}
             prio_str = prio_map.get(prio, "")
@@ -253,6 +256,12 @@ def add_card():
         return jsonify({"error": "content is required"}), 400
 
     tag = body.get("tag") or detect_tag(content)
+    # Multi-tag support: prefer tags list, fall back to single tag
+    tags = body.get("tags")
+    if tags is None:
+        tags = [tag] if tag else []
+    elif not isinstance(tags, list):
+        tags = [str(tags)]
     priority = body.get("priority") or detect_priority(content)
     subtasks: List[Dict] = body.get("subtasks", [])
     links: List[str] = body.get("links", [])
@@ -265,6 +274,7 @@ def add_card():
         "column_id": column_id,
         "content": content,
         "tag": tag,
+        "tags": tags,
         "priority": priority,
         "subtasks": subtasks,
         "links": links,
@@ -311,15 +321,19 @@ def edit_card(card_id: str):
         if not new_content:
             return jsonify({"error": "content cannot be empty"}), 400
         updates["content"] = new_content
-        if "tag" not in req_data:
+        if "tag" not in req_data and "tags" not in req_data:
             updates["tag"] = detect_tag(new_content)
         if "priority" not in req_data:
             updates["priority"] = detect_priority(new_content)
             
     # Support other fields as well for the single-save Card Modal
-    for field in ["tag", "priority", "note", "due_date", "recurring", "subtasks", "links"]:
+    for field in ["tag", "priority", "note", "due_date", "recurring", "subtasks", "links", "tags"]:
         if field in req_data:
             updates[field] = req_data[field]
+
+    # If tags is provided, strip the old single tag to avoid duplication
+    if "tags" in updates and "tag" in updates:
+        del updates["tag"]
             
     if not updates:
         return jsonify({"error": "no updates provided"}), 400
@@ -565,11 +579,14 @@ def tt_webhook():
     # Try LLM triage first, fallback to keyword
     triage = _llm_triage(content)
 
+    tag = triage["tag"]
+    tags = [tag] if tag else []
     card = {
         "id": f"card-{datetime.now().strftime('%Y%m%d-%H%M%S-%f')}",
         "column_id": triage["column"],
         "content": content,
-        "tag": triage["tag"],
+        "tag": tag,
+        "tags": tags,
         "priority": triage["priority"],
         "subtasks": [], "links": [],
         "due_date": triage.get("due_date"),
@@ -823,11 +840,16 @@ def check_recurring():
                 should_repeat = (weekday in days)
 
             if should_repeat:
+                tag_val = card.get("tag", "")
+                old_tags = card.get("tags", [])
+                if not old_tags and tag_val:
+                    old_tags = [tag_val]
                 new_card = {
                     "id": f"card-{now.strftime('%Y%m%d-%H%M%S-%f')}",
                     "column_id": "backlog",
                     "content": card["content"],
-                    "tag": card.get("tag", ""),
+                    "tag": tag_val,
+                    "tags": old_tags,
                     "priority": card.get("priority", 3),
                     "subtasks": [],
                     "links": [],
@@ -855,8 +877,10 @@ def auto_tag_all():
     for cid, col_cards in cards.items():
         for card in col_cards:
             if not card.get("tag"):
-                update_card(card["id"], {"tag": detect_tag(card["content"])})
-                count += 1
+                detected = detect_tag(card["content"])
+                if detected:
+                    update_card(card["id"], {"tag": detected, "tags": [detected]})
+                    count += 1
     sync_json_to_md()
     return jsonify({"ok": True, "tagged": count})
 
@@ -1028,6 +1052,7 @@ Classification rules:
 
         # Apply triage results
         tag = triage.get("tag") or detect_tag(content)
+        tags = [tag] if tag else []
         priority = triage.get("priority") or detect_priority(content)
         target_column = triage.get("column", column_id)
         due_date = triage.get("due_date")
@@ -1037,6 +1062,7 @@ Classification rules:
             "column_id": target_column,
             "content": content,
             "tag": tag,
+            "tags": tags,
             "priority": int(priority),
             "subtasks": [],
             "links": [],

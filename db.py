@@ -27,6 +27,7 @@ def init_db() -> None:
             column_id TEXT NOT NULL DEFAULT 'backlog',
             content TEXT NOT NULL,
             tag TEXT DEFAULT '',
+            tags TEXT DEFAULT '[]',
             priority INTEGER DEFAULT 3,
             subtasks TEXT DEFAULT '[]',
             links TEXT DEFAULT '[]',
@@ -76,6 +77,7 @@ def get_all_cards() -> Dict[str, List[Dict]]:
         card = dict(row)
         card["subtasks"] = json.loads(card["subtasks"])
         card["links"] = json.loads(card["links"])
+        card["tags"] = json.loads(card.get("tags", "[]") or "[]")
         card["archived"] = bool(card["archived"])
         card["decayed"] = bool(card["decayed"])
         card["done"] = bool(card["done"])
@@ -95,6 +97,7 @@ def get_archived_cards() -> List[Dict]:
         card = dict(row)
         card["subtasks"] = json.loads(card["subtasks"])
         card["links"] = json.loads(card["links"])
+        card["tags"] = json.loads(card.get("tags", "[]") or "[]")
         card["archived"] = True
         card["decayed"] = bool(card["decayed"])
         card["done"] = bool(card["done"])
@@ -110,16 +113,28 @@ def insert_card(card: Dict) -> None:
         (card["column_id"],),
     )
     position = cur.fetchone()[0]
+
+    # Backward compat: derive tags from tag if tags not explicitly provided
+    tags_val = card.get("tags")
+    if tags_val is None or tags_val == []:
+        tag_val = card.get("tag", "")
+        if tag_val:
+            tags_val = [tag_val]
+        else:
+            tags_val = []
+    tags_json = json.dumps(tags_val) if isinstance(tags_val, list) else (tags_val or "[]")
+
     conn.execute(
-        """INSERT INTO tasks (id, column_id, content, tag, priority, subtasks, links,
+        """INSERT INTO tasks (id, column_id, content, tag, tags, priority, subtasks, links,
            due_date, recurring, note, archived, decayed, done, triage_source, position,
            created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             card["id"],
             card["column_id"],
             card["content"],
             card.get("tag", ""),
+            tags_json,
             card.get("priority", 3),
             json.dumps(card.get("subtasks", [])),
             json.dumps(card.get("links", [])),
@@ -148,7 +163,7 @@ def update_card(card_id: str, updates: Dict) -> None:
         conn.close()
         return
     allowed = {
-        "content", "tag", "priority", "due_date", "recurring", "note",
+        "content", "tag", "tags", "priority", "due_date", "recurring", "note",
         "archived", "decayed", "done", "triage_source", "column_id"
     }
     sets = []
@@ -158,6 +173,8 @@ def update_card(card_id: str, updates: Dict) -> None:
             val = updates[k]
             if k in ("archived", "decayed", "done"):
                 val = int(val)
+            elif k == "tags":
+                val = json.dumps(val) if isinstance(val, list) else val
             sets.append(f"{k} = ?")
             values.append(val)
     if "subtasks" in updates:
@@ -255,6 +272,9 @@ def migrate_from_json(json_path: Path) -> int:
         for pos, card in enumerate(col.get("cards", [])):
             card["column_id"] = col["id"]
             card.setdefault("tag", "")
+            old_tag = card.get("tag", "")
+            if "tags" not in card:
+                card["tags"] = [old_tag] if old_tag else []
             card.setdefault("priority", 3)
             card.setdefault("subtasks", [])
             card.setdefault("links", [])
