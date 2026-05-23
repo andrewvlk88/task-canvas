@@ -137,6 +137,23 @@
     .app-view { transition: opacity 0.2s ease-out; }
     .archived-card { background: rgba(139, 92, 246, 0.03); border: 1px solid rgba(139, 92, 246, 0.1); border-radius: 12px; padding: 12px 16px; transition: all 0.15s; }
     .archived-card:hover { background: rgba(139, 92, 246, 0.06); border-color: var(--accent); }
+
+    /* ───── Mobile Responsive ───── */
+    @media (max-width: 768px) {
+      .board { flex-direction: column; overflow-x: hidden; gap: 4px; padding: 0; }
+      .column { min-width: unset; max-width: unset; flex: none; border-radius: 12px; padding: 6px 10px; }
+      .col-body { display: none; }
+      .column.open .col-body { display: flex; }
+      .col-title { cursor: pointer; padding: 6px 0; font-size: 13px; }
+      .col-title::after { content: ' ▾'; font-size: 16px; }
+      .column:not(.open) .quick-add { display: none; }
+      .card { padding: 8px 10px; }
+      .card:hover { transform: none; }
+      .header { padding: 10px 14px; }
+      .controls { flex-wrap: nowrap; overflow-x: auto; gap: 6px; padding-bottom: 8px; }
+      .search-input { min-width: 120px; }
+      .fab { bottom: 110px; }
+    }
   </style>
 </head>
 <body class="overflow-x-hidden">
@@ -654,6 +671,26 @@ function render() {
   }).join('');
   
   lucide.createIcons();
+  
+  // Mobile accordion: make column titles clickable
+  document.querySelectorAll('.col-title').forEach(title => {
+    title.onclick = () => {
+      const col = title.closest('.column');
+      if (col) col.classList.toggle('open');
+    };
+  });
+  
+  // Open first non-empty column by default on mobile
+  if (window.innerWidth <= 768) {
+    const cols2 = document.querySelectorAll('.column');
+    for (const c of cols2) {
+      if (c.querySelector('.card')) { c.classList.add('open'); break; }
+    }
+    // If all empty, open first
+    if (!document.querySelector('.column.open') && cols2.length) {
+      cols2[0].classList.add('open');
+    }
+  }
 }
 
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
