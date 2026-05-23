@@ -150,7 +150,7 @@
       .card { padding: 8px 10px; }
       .card:hover { transform: none; }
       .header { padding: 10px 14px; }
-      .controls { flex-wrap: nowrap; overflow-x: auto; gap: 6px; padding-bottom: 8px; }
+      .controls { flex-wrap: wrap; overflow-x: auto; gap: 6px; padding-bottom: 8px; }
       .search-input { min-width: 120px; }
       .fab { bottom: 110px; }
     }
@@ -221,11 +221,8 @@
       
       <!-- BOARD VIEW -->
       <div id="view-board" class="app-view space-y-4">
-        <div class="controls">
+        <div class="controls" id="filter-controls">
           <input type="text" class="search-input" placeholder="🔍 חפש..." id="search" oninput="render()">
-          <button class="chip active" data-filter="all" onclick="setFilter('all',this)">הכל</button>
-          <button class="chip" data-filter="work" onclick="setFilter('work',this)">💼 עבודה</button>
-          <button class="chip" data-filter="personal" onclick="setFilter('personal',this)">🏠 אישית</button>
         </div>
         <div class="board" id="board" style="padding: 0;"></div>
       </div>
@@ -413,12 +410,12 @@
           </select>
         </div>
         <div>
-          <label class="block text-xs font-bold text-[#9e99b3] mb-1.5">תגית</label>
-          <select id="modal-tag" class="w-full bg-[#120d24] border border-[#231b3c] text-white p-2.5 rounded-xl text-sm outline-none transition focus:border-[#8b5cf6]">
-            <option value="">ללא תגית</option>
-            <option value="עבודה">💼 עבודה</option>
-            <option value="אישית">🏠 אישית</option>
-          </select>
+          <label class="block text-xs font-bold text-[#9e99b3] mb-1.5">תגיות</label>
+          <div id="modal-tags-container" class="flex flex-wrap gap-1.5"></div>
+          <div class="flex gap-1 mt-1.5">
+            <input type="text" id="modal-new-tag-input" class="flex-1 bg-[#120d24] border border-[#231b3c] focus:border-[#8b5cf6] text-white p-1.5 rounded-lg text-xs outline-none transition" placeholder="תגית חדשה...">
+            <button onclick="addModalCustomTag()" class="px-2.5 bg-[#8b5cf6]/20 hover:bg-[#8b5cf6]/30 border border-[#8b5cf6]/30 text-[#a78bfa] rounded-lg text-xs font-bold transition">+</button>
+          </div>
         </div>
       </div>
 
@@ -549,7 +546,7 @@
 <script>
 const API = '/api';
 let boardData = { columns: [] };
-let activeFilter = 'all';
+let activeFilters = new Set();
 let currentView = 'board';
 
 // Local storage lists for editing modal
@@ -557,6 +554,8 @@ let currentModalCardId = null;
 let modalSubtasks = [];
 let modalLinks = [];
 let aiPreviewSubtasks = [];
+let modalTags = []; // multi-tag array for the modal
+const knownTags = ['עבודה', 'אישית', 'בריאות', 'כספים', 'ילדים'];
 
 // Charts placeholders
 let velocityChart = null;
@@ -589,19 +588,76 @@ async function fetchBoard() {
 function match(card) {
   const q = (document.getElementById('search')?.value||'').toLowerCase();
   if (q && !(card.content||'').toLowerCase().includes(q)) return false;
-  if (activeFilter === 'work' && card.tag !== 'עבודה') return false;
-  if (activeFilter === 'personal' && card.tag !== 'אישית') return false;
   if (card.archived) return false;
+  // Multi-tag filtering: card matches if filters empty OR card has ANY of the active filter tags
+  if (activeFilters.size > 0) {
+    const cardTags = getCardTags(card);
+    const matched = cardTags.some(t => activeFilters.has(t));
+    if (!matched) return false;
+  }
   return true;
 }
 
-function setFilter(f,btn) {
-  activeFilter = f;
-  document.querySelectorAll('[data-filter]').forEach(b => {
-    if (b.dataset.filter === f) b.classList.add('active');
-    else b.classList.remove('active');
+// Helper: get all tags from a card (from tags array or legacy tag field)
+function getCardTags(card) {
+  if (Array.isArray(card.tags) && card.tags.length > 0) return card.tags;
+  if (card.tag) return [card.tag];
+  return [];
+}
+
+// Tag emoji mapping
+function tagEmoji(tag) {
+  const map = { 'עבודה': '💼', 'אישית': '🏠', 'בריאות': '💚', 'כספים': '💰', 'ילדים': '👶' };
+  return map[tag] || '🏷️';
+}
+
+// Gather all unique tags across all cards
+function allUniqueTags() {
+  const set = new Set();
+  boardData.columns.forEach(col => {
+    col.cards.forEach(c => {
+      getCardTags(c).forEach(t => set.add(t));
+    });
   });
+  return [...set].sort();
+}
+
+function setFilter(tag, btn) {
+  if (!tag || tag === 'all') {
+    activeFilters.clear();
+    render();
+    return;
+  }
+  // Toggle filter tag
+  if (activeFilters.has(tag)) activeFilters.delete(tag);
+  else activeFilters.add(tag);
   render();
+}
+
+function renderFilterChips() {
+  const container = document.getElementById('filter-controls');
+  if (!container) return;
+  // Remove existing chips (keep the search input)
+  const chips = container.querySelectorAll('.chip');
+  chips.forEach(c => c.remove());
+  
+  const tags = allUniqueTags();
+  
+  // "All" button
+  const allBtn = document.createElement('button');
+  allBtn.className = 'chip' + (activeFilters.size === 0 ? ' active' : '');
+  allBtn.textContent = 'הכל';
+  allBtn.onclick = function() { setFilter('all'); };
+  container.appendChild(allBtn);
+  
+  // Tag chips
+  tags.forEach(tag => {
+    const btn = document.createElement('button');
+    btn.className = 'chip' + (activeFilters.has(tag) ? ' active' : '');
+    btn.textContent = tagEmoji(tag) + ' ' + tag;
+    btn.onclick = function() { setFilter(tag); };
+    container.appendChild(btn);
+  });
 }
 
 function render() {
@@ -648,7 +704,7 @@ function render() {
                 ` : ''}
 
                 <div class="card-meta">
-                  ${c.tag ? `<span>${c.tag==='עבודה'?'💼':'🏠'} ${esc(c.tag)}</span>` : ''}
+                  ${getCardTags(c).map(t => `<span style="display:inline-flex;align-items:center;gap:2px;background:rgba(139,92,246,0.12);padding:1px 7px;border-radius:10px;font-size:10px;color:var(--accent-hover);border:1px solid rgba(139,92,246,0.2)">${tagEmoji(t)} ${esc(t)}</span>`).join(' ')}
                   ${c.due_date ? `<span>📅 ${new Date(c.due_date).toLocaleDateString('he-IL',{day:'numeric',month:'short'})}</span>` : ''}
                   ${c.recurring ? `<span class="text-[#a78bfa] font-bold">🔁</span>` : ''}
                 </div>
@@ -671,6 +727,9 @@ function render() {
   }).join('');
   
   lucide.createIcons();
+  
+  // Rebuild dynamic filter chips
+  renderFilterChips();
   
   // Mobile accordion: make column titles clickable
   document.querySelectorAll('.col-title').forEach(title => {
@@ -906,7 +965,7 @@ async function loadArchive() {
           <div class="text-white font-medium text-sm mb-1">${esc(c.content)}</div>
           <div class="flex items-center gap-2 text-[10.5px] text-[#9e99b3]">
             <span>📅 נוצר: ${new Date(c.created_at).toLocaleDateString('he-IL')}</span>
-            ${c.tag ? `<span>| ${c.tag==='עבודה'?'💼':'🏠'} ${esc(c.tag)}</span>` : ''}
+            ${getCardTags(c).length ? `<span>| ${getCardTags(c).map(t => tagEmoji(t) + ' ' + esc(t)).join(', ')}</span>` : ''}
             <span>| נסגר: ${new Date(c.updated_at).toLocaleDateString('he-IL')}</span>
           </div>
         </div>
@@ -967,11 +1026,12 @@ function editCard(id) {
   currentModalCardId = id;
   modalSubtasks = JSON.parse(JSON.stringify(card.subtasks || []));
   modalLinks = JSON.parse(JSON.stringify(card.links || []));
+  // Populate modalTags from card.tags array or legacy card.tag
+  modalTags = getCardTags(card);
   
   // Populate general info
   document.getElementById('modal-content').value = card.content || '';
   document.getElementById('modal-priority').value = card.priority || 3;
-  document.getElementById('modal-tag').value = card.tag || '';
   document.getElementById('modal-due-date').value = card.due_date || '';
   document.getElementById('modal-recurring').value = card.recurring || '';
   document.getElementById('modal-note').value = card.note || '';
@@ -982,7 +1042,9 @@ function editCard(id) {
   document.getElementById('modal-new-subtask').value = '';
   document.getElementById('modal-new-link-title').value = '';
   document.getElementById('modal-new-link-url').value = '';
+  document.getElementById('modal-new-tag-input').value = '';
   
+  renderModalTags();
   renderModalSubtasks();
   renderModalLinks();
   
@@ -1141,20 +1203,59 @@ function approveAiPreview() {
   cancelAiPreview();
 }
 
+// ───── Modal Multi-Tag Picker ─────
+function renderModalTags() {
+  const container = document.getElementById('modal-tags-container');
+  if (!container) return;
+  
+  // Show all known tags + any custom tags in modalTags
+  const allTags = [...new Set([...knownTags, ...modalTags])];
+  
+  container.innerHTML = allTags.map(tag => {
+    const active = modalTags.includes(tag);
+    return `<button class="chip ${active ? 'active' : ''}" onclick="toggleModalTag('${esc(tag).replace(/'/g, "\\'")}')" style="font-size:11px;padding:3px 10px">
+      ${tagEmoji(tag)} ${esc(tag)}
+    </button>`;
+  }).join('');
+}
+
+function toggleModalTag(tag) {
+  const idx = modalTags.indexOf(tag);
+  if (idx === -1) {
+    modalTags.push(tag);
+  } else {
+    modalTags.splice(idx, 1);
+  }
+  renderModalTags();
+}
+
+function addModalCustomTag() {
+  const input = document.getElementById('modal-new-tag-input');
+  const val = input.value.trim();
+  if (!val) return;
+  // Add if not already present
+  if (!modalTags.includes(val)) {
+    modalTags.push(val);
+    renderModalTags();
+  }
+  input.value = '';
+}
+
 async function saveCardModal() {
   const content = document.getElementById('modal-content').value.trim();
   if (!content) return alert('אנא הזן שם משימה');
   
   const priority = parseInt(document.getElementById('modal-priority').value) || 3;
-  const tag = document.getElementById('modal-tag').value;
   const due_date = document.getElementById('modal-due-date').value || null;
   const recurring = document.getElementById('modal-recurring').value || null;
   const note = document.getElementById('modal-note').value.trim();
+  const tag = modalTags.length > 0 ? modalTags[0] : ''; // legacy backward compat
   
   const payload = {
     content,
     priority,
     tag,
+    tags: modalTags,
     due_date,
     recurring,
     note,
