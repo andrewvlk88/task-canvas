@@ -592,12 +592,12 @@ Task: {content}
 
 Andrew: works at Rubrik (cyber/cloud data protection), lives in Rosh HaAyin, wife Liron, kids Ari (5.5) and Adam (2.5).
 Return ONLY a JSON object with these fields (no other text):
-{{"tag": "עבודה"|"אישית"|"", "priority": 1-5, "column": "backlog"|"week"|"inprogress"|"waiting", "due_date": "YYYY-MM-DD or null"}}
+{{"tag": "עבודה"|"אישית"|"", "priority": 1-5, "column": "backlog"|"week"|"doing"|"done", "due_date": "YYYY-MM-DD or null"}}
 
 Classification rules:
 - Rubrik, clients, vendors, tech → "עבודה", P2
 - Family, home, kids, errands, health → "אישית", P2-P3
-- "דחוף", "חירום", "ASAP", "עד מחר", "הבוקר" → P1, column "inprogress"
+- "דחוף", "חירום", "ASAP", "עד מחר", "הבוקר" → P1, column "doing"
 - Date mentioned → set due_date; "השבוע" → column "week"
 - Default → column "backlog", P3
 """
@@ -998,15 +998,15 @@ Task: {content}
 
 Andrew: works at Rubrik (cyber/cloud data protection), lives in Rosh HaAyin, wife Liron, kids Ari (5.5) and Adam (2.5).
 Return ONLY a JSON object with these fields (no other text):
-{{"tag": "עבודה"|"אישית"|"", "priority": 1-5, "column": "backlog"|"week"|"inprogress"|"waiting", "due_date": "YYYY-MM-DD or null"}}
+{{"tag": "עבודה"|"אישית"|"", "priority": 1-5, "column": "backlog"|"week"|"doing"|"done", "due_date": "YYYY-MM-DD or null"}}
 
 Classification rules:
 - Rubrik, clients, vendors, tech → "עבודה", P2
 - Family, home, kids, errands, health → "אישית", P2-P3
-- "דחוף", "חירום", "ASAP", "עד מחר", "הבוקר" → P1, column "inprogress"
+- "דחוף", "חירום", "ASAP", "עד מחר", "הבוקר" → P1, column "doing"
 - Date mentioned (e.g. "ביום שלישי", "מחר", "10/06") → set due_date
 - "השבוע" → column "week"
-- "צריך לבדוק", "להתקשר", "לשלוח" → column "inprogress" if urgent, else "week"
+- "צריך לבדוק", "להתקשר", "לשלוח" → column "doing" if urgent, else "week"
 - Default → column "backlog", P3
 """
 
@@ -1062,7 +1062,7 @@ def smart_fallback(content: str) -> dict:
     priority = detect_priority(content)
     column = "backlog"
     if any(k in c for k in ["דחוף", "asap", "עכשיו", "בוקר", "הלילה", "חירום"]):
-        column = "inprogress"
+        column = "doing"
     elif any(k in c for k in ["השבוע", "מחר", "שלישי", "רביעי", "חמישי", "שישי"]):
         column = "week"
     return {"tag": tag, "priority": priority, "column": column, "due_date": None}
