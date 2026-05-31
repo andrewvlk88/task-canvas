@@ -29,9 +29,46 @@ from db import (
     insert_card, update_card, delete_card as db_delete_card, move_card_to_column, get_archived_cards,
     reorder_card,
 )
-from flask import Flask, Response, jsonify, render_template, request
+from flask import Flask, Response, jsonify, render_template, request, redirect
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
+
+# ── HTTPS Redirect (for Cloudflare reverse proxy) ──
+@app.before_request
+def force_https():
+    if request.headers.get('X-Forwarded-Proto') == 'http':
+        return redirect(request.url.replace('http://', 'https://', 1), code=301)
+
+# ── Security Headers ──
+@app.after_request
+def add_security_headers(response):
+    # Strict Transport Security (HSTS)
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    # Content Security Policy
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self' https://cdn.tailwindcss.com https://unpkg.com https://cdn.jsdelivr.net 'unsafe-inline'; "
+        "style-src 'self' https://fonts.googleapis.com https://cdn.tailwindcss.com 'unsafe-inline'; "
+        "font-src 'self' https://fonts.gstatic.com; "
+        "connect-src 'self'; "
+        "img-src 'self' data: https:; "
+        "frame-ancestors 'self'; "
+        "base-uri 'self'; "
+        "form-action 'self';"
+    )
+    # Prevent framing (clickjacking)
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    # Prevent MIME sniffing
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    # Control referrer info
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    # Limit browser features / APIs
+    response.headers["Permissions-Policy"] = (
+        "geolocation=(), microphone=(), camera=(), "
+        "payment=(), usb=(), magnetometer=(), gyroscope=()"
+    )
+    return response
+
 
 TASKS_FILE = Path.home() / ".hermes" / "tasks.json"  # legacy — migrated to SQLite
 USERNAME = os.environ.get("CANVAS_USER", "andrew")
