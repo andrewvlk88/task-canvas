@@ -5,30 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Canvas · Aether Premium</title>
   <link href="/static/tailwind.min.css" rel="stylesheet">
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700;800&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <script src="https://unpkg.com/lucide@latest"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          fontFamily: { sans: ['Heebo', 'Inter', 'sans-serif'] },
-          colors: {
-            aether: {
-              bg: '#080511',
-              card: '#120d24',
-              cardHov: '#191333',
-              accent: '#8b5cf6',
-              accentGlow: 'rgba(139, 92, 246, 0.4)',
-              textMuted: '#9e99b3',
-              border: '#231b3c'
-            }
-          }
-        }
-      }
-    }
-  </script>
+  <script src="/static/lucide.min.js"></script>
+  <script src="/static/chart.min.js"></script>
   <style>
     * { font-family: 'Heebo', 'Inter', sans-serif; margin: 0; padding: 0; box-sizing: border-box; }
     button { background: none; color: inherit; border: none; padding: 0; font: inherit; cursor: pointer; outline: inherit; }
@@ -142,13 +120,12 @@
 
     /* ───── Mobile Responsive ───── */
     @media (max-width: 768px) {
-      .board { flex-direction: column; overflow-x: hidden; gap: 4px; padding: 0; }
-      .column { min-width: unset; max-width: unset; flex: none; border-radius: 12px; padding: 6px 10px; }
-      .col-body { display: none; }
-      .column.open .col-body { display: flex; }
-      .col-title { cursor: pointer; padding: 6px 0; font-size: 13px; }
-      .col-title::after { content: ' ▾'; font-size: 16px; }
-      .column:not(.open) .quick-add { display: none; }
+      .board { flex-direction: row; overflow-x: auto; gap: 8px; padding: 0; }
+      .column { min-width: 240px; max-width: 280px; border-radius: 12px; padding: 8px; }
+      .col-body { display: flex; }
+      .col-title { cursor: default; padding: 4px 0; font-size: 12px; }
+      .col-title::after { content: ''; }
+      .quick-add { display: flex; }
       .card { padding: 8px 10px; }
       .card:hover { transform: none; }
       .header { padding: 10px 14px; }
@@ -164,7 +141,7 @@
 <div class="flex flex-col md:flex-row min-h-screen">
   
   <!-- Right Sidebar for Desktop (aligned right for RTL layout) -->
-  <aside class="w-full md:w-[250px] bg-[#0c081c]/80 border-l border-[#231b3c] md:flex flex-col shrink-0 z-40 p-5 hidden backdrop-blur-md">
+  <aside style="width: 250px;" class="bg-[#0c081c]/80 border-l border-[#231b3c] md:flex flex-col shrink-0 z-40 p-5 hidden backdrop-blur-md">
     <div class="brand mb-8 flex items-center gap-2">
       <span class="brand-text">Canvas</span>
       <span class="brand-sub">AETHER</span>
@@ -196,7 +173,7 @@
   </aside>
 
   <!-- Main Content Area -->
-  <div class="flex-1 flex flex-col min-w-0 pb-[100px] md:pb-[60px]">
+  <div style="padding-bottom: 60px;" class="flex-1 flex flex-col min-w-0">
     
     <!-- Top Header -->
     <header class="header">
@@ -549,6 +526,21 @@
 <script>
 const API = '/api';
 let boardData = { columns: [] };
+
+// Intercept relative API calls to include credentials for basic-auth
+const _origFetch = window.fetch;
+window.fetch = function(url, ...rest) {
+  let opts = rest[0] || {};
+  if (typeof url === 'string' && url.startsWith('/')) {
+    opts = { ...opts, credentials: 'include' };
+    // Inject Basic Auth header (injected by server at render time)
+    if (!opts.headers) { opts.headers = {}; }
+    if (typeof opts.headers === 'object' && !(opts.headers instanceof Headers)) {
+      opts.headers['Authorization'] = '{{ auth_header }}';
+    }
+  }
+  return _origFetch(url, opts);
+};
 let activeFilters = new Set();
 let currentView = 'board';
 
@@ -565,9 +557,19 @@ let velocityChart = null;
 let tagsChart = null;
 
 async function init() {
-  document.getElementById('today-date').textContent = new Date().toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-  await fetchBoard();
-  lucide.createIcons();
+  try {
+    // DEBUG MODE — show what we have
+    document.getElementById('today-date').textContent = '⏳ טוען...';
+    const r = await fetch(API+'/board');
+    if (!r.ok) throw new Error('API ' + r.status);
+    boardData = await r.json();
+    document.getElementById('today-date').textContent = '✅ ' + boardData.columns.length + ' עמודות, ' + boardData.columns.reduce((a,c)=>a+c.cards.length,0) + ' כרטיסים';
+    render();
+    lucide.createIcons();
+  } catch(e) {
+    document.getElementById('today-date').textContent = '❌ ' + e.message;
+    document.getElementById('today-date').style.color = 'red';
+  }
 }
 
 async function fetchBoard() {

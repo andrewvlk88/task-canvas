@@ -7,7 +7,7 @@ import json
 import os
 import re
 import subprocess
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import wraps
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -272,7 +272,9 @@ def detect_priority(content: str) -> int:
 @app.route("/")
 @require_auth
 def index():
-    return render_template("kanban.html")
+    import base64
+    auth_header = "Basic " + base64.b64encode(f"{USERNAME}:{PASSWORD}".encode()).decode()
+    return render_template("kanban.html", auth_header=auth_header)
 
 
 @app.route("/api/board", methods=["GET"])
@@ -678,18 +680,29 @@ Classification rules:
 @app.route("/api/smart-archive", methods=["POST"])
 @require_auth
 def smart_archive():
-    """Archive Done cards older than 7 days. Keeps them in Done column but marks as archived."""
+    """Archive Done cards older than `days` (default 7).
+
+    Configurable so a tight daily-driver cron and a forgiving weekly sweep
+    can share the same endpoint. Backwards compatible: existing callers that
+    POST no body still get the 7-day default.
+    """
+    body = request.get_json(silent=True) or {}
+    days = int(body.get("days", 7))
+    if days < 1:
+        return jsonify({"ok": False, "error": "days must be >= 1"}), 400
+
     cards = get_all_cards()
     now = datetime.now()
+    threshold = timedelta(days=days)
     archived = 0
     for card in cards.get("done", []):
         created = datetime.fromisoformat(card.get("created_at", now.isoformat()))
-        if not card.get("archived") and (now - created).total_seconds() > 72 * 3600:
+        if not card.get("archived") and (now - created) > threshold:
             update_card(card["id"], {"archived": True})
             archived += 1
     if archived > 0:
         sync_json_to_md()
-    return jsonify({"ok": True, "archived": archived})
+    return jsonify({"ok": True, "archived": archived, "days": days})
 
 
 # ---------- Quick Reminder ----------
@@ -859,7 +872,7 @@ def check_recurring():
             recurring = card.get("recurring")
             if not recurring:
                 continue
-            last_check = card.get("last_recurring_check", "")
+            last_check = card.get("last_recurring_check") or ""
             if last_check == today_str and cid != "done":
                 continue
 
@@ -898,7 +911,8 @@ def check_recurring():
                 insert_card(new_card)
                 count += 1
 
-            update_card(card["id"], {"note": f"last_recurring_check: {today_str}"})
+            # Stamp the dedicated column, NOT the user-facing note field.
+            update_card(card["id"], {"last_recurring_check": today_str})
 
     if count > 0:
         sync_json_to_md()
@@ -1012,7 +1026,7 @@ Command: {command}
 
 Rules:
 - Use curl -u andrew:hermes666 for API calls
-- Column IDs: backlog, week, inprogress, waiting, done
+- Column IDs: backlog, week, doing, done
 - Priority: 1 (highest) to 5 (lowest)
 - Tags: "עבודה" or "אישית"
 - Never ask for confirmation — just execute

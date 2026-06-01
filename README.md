@@ -57,12 +57,15 @@ CREATE TABLE audit_log (
 
 ## Columns
 
+Single source of truth: `db.column_order()` in `db.py`. The frontend, README, and
+LLM triage prompts all reference these IDs. If you ever add a column, update
+`column_order()` first — nothing else is canonical.
+
 | ID | Display |
 |----|---------|
 | `backlog` | 📚 Backlog |
 | `week` | 📅 משימות השבוע |
-| `inprogress` | 🚀 In Progress |
-| `waiting` | ⏳ במעקב |
+| `doing` | 🚀 Doing |
 | `done` | ✅ Done |
 
 ## API Endpoints

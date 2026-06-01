@@ -38,6 +38,7 @@ def init_db() -> None:
             decayed INTEGER DEFAULT 0,
             done INTEGER DEFAULT 0,
             triage_source TEXT,
+            last_recurring_check TEXT,
             position INTEGER DEFAULT 0,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL
@@ -56,6 +57,10 @@ def init_db() -> None:
 
         CREATE INDEX IF NOT EXISTS idx_audit_task ON audit_log(task_id);
     """)
+    # Forward-compat: add last_recurring_check to existing DBs that predate the column
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(tasks)").fetchall()}
+    if "last_recurring_check" not in cols:
+        conn.execute("ALTER TABLE tasks ADD COLUMN last_recurring_check TEXT")
     conn.commit()
     conn.close()
 
@@ -106,53 +111,64 @@ def get_archived_cards() -> List[Dict]:
 
 
 def insert_card(card: Dict) -> None:
-    """Insert a new card. card must have id, column_id, content."""
+    """Insert a new card. card must have id, column_id, content.
+
+    Uses BEGIN IMMEDIATE to serialize concurrent writers — without it, two
+    parallel requests can both read the same MAX(position) and collide.
+    """
     conn = get_db()
-    cur = conn.execute(
-        "SELECT COALESCE(MAX(position), -1) + 1 FROM tasks WHERE column_id = ?",
-        (card["column_id"],),
-    )
-    position = cur.fetchone()[0]
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        cur = conn.execute(
+            "SELECT COALESCE(MAX(position), -1) + 1 FROM tasks WHERE column_id = ?",
+            (card["column_id"],),
+        )
+        position = cur.fetchone()[0]
 
-    # Backward compat: derive tags from tag if tags not explicitly provided
-    tags_val = card.get("tags")
-    if tags_val is None or tags_val == []:
-        tag_val = card.get("tag", "")
-        if tag_val:
-            tags_val = [tag_val]
-        else:
-            tags_val = []
-    tags_json = json.dumps(tags_val) if isinstance(tags_val, list) else (tags_val or "[]")
+        # Backward compat: derive tags from tag if tags not explicitly provided
+        tags_val = card.get("tags")
+        if tags_val is None or tags_val == []:
+            tag_val = card.get("tag", "")
+            if tag_val:
+                tags_val = [tag_val]
+            else:
+                tags_val = []
+        tags_json = json.dumps(tags_val) if isinstance(tags_val, list) else (tags_val or "[]")
 
-    conn.execute(
-        """INSERT INTO tasks (id, column_id, content, tag, tags, priority, subtasks, links,
-           due_date, recurring, note, archived, decayed, done, triage_source, position,
-           created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (
-            card["id"],
-            card["column_id"],
-            card["content"],
-            card.get("tag", ""),
-            tags_json,
-            card.get("priority", 3),
-            json.dumps(card.get("subtasks", [])),
-            json.dumps(card.get("links", [])),
-            card.get("due_date"),
-            card.get("recurring"),
-            card.get("note", ""),
-            int(card.get("archived", False)),
-            int(card.get("decayed", False)),
-            int(card.get("done", False)),
-            card.get("triage_source"),
-            position,
-            card["created_at"],
-            card["updated_at"],
-        ),
-    )
-    _audit(conn, card["id"], "insert", None, card)
-    conn.commit()
-    conn.close()
+        conn.execute(
+            """INSERT INTO tasks (id, column_id, content, tag, tags, priority, subtasks, links,
+               due_date, recurring, note, archived, decayed, done, triage_source,
+               last_recurring_check, position, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                card["id"],
+                card["column_id"],
+                card["content"],
+                card.get("tag", ""),
+                tags_json,
+                card.get("priority", 3),
+                json.dumps(card.get("subtasks", [])),
+                json.dumps(card.get("links", [])),
+                card.get("due_date"),
+                card.get("recurring"),
+                card.get("note", ""),
+                int(card.get("archived", False)),
+                int(card.get("decayed", False)),
+                int(card.get("done", False)),
+                card.get("triage_source"),
+                card.get("last_recurring_check"),
+                position,
+                card["created_at"],
+                card["updated_at"],
+            ),
+        )
+        _audit(conn, card["id"], "insert", None, card)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 
 def update_card(card_id: str, updates: Dict) -> None:
@@ -164,7 +180,8 @@ def update_card(card_id: str, updates: Dict) -> None:
         return
     allowed = {
         "content", "tag", "tags", "priority", "due_date", "recurring", "note",
-        "archived", "decayed", "done", "triage_source", "column_id"
+        "archived", "decayed", "done", "triage_source", "last_recurring_check",
+        "column_id",
     }
     sets = []
     values = []
@@ -285,7 +302,12 @@ def migrate_from_json(json_path: Path) -> int:
             card.setdefault("decayed", card.get("decayed", False))
             card.setdefault("done", card.get("done", False))
             card.setdefault("position", pos)
-            card.setdefault("triaged_source", card.get("triaged_source"))
+            # Legacy JSON files used the misspelled "triaged_source" — silently
+            # normalize to the canonical "triage_source" the rest of the code uses.
+            if "triaged_source" in card:
+                card.setdefault("triage_source", card.pop("triaged_source"))
+            else:
+                card.setdefault("triage_source", card.get("triage_source"))
             now = datetime.now().isoformat()
             card.setdefault("created_at", now)
             card.setdefault("updated_at", card.get("created_at", now))

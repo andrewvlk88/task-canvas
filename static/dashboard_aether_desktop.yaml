@@ -1,0 +1,321 @@
+# Aether Premium Desktop Dashboard - Home Assistant
+# URL to copy: https://andrew.avolkov.click/static/dashboard_aether_desktop.yaml
+# Created by Hermes Agent for Andrew Volkov (May 2026)
+
+title: Smart Home Desktop (Aether Premium)
+views:
+  - title: 🏠 מבט על
+    type: sections
+    max_columns: 4
+    sections:
+      # =========================================================================
+      # עמודה 1: 🛡️ אבטחה, תשתית ומשפחה (Alerts, Infrastructure & Family)
+      # =========================================================================
+      - type: grid
+        cards:
+          - type: heading
+            heading: 🛡️ אבטחה, בקרה ומשפחה
+            icon: mdi:shield-home
+
+          # צבע אדום - יתריע דינמית בצבע אדום בוהק ובולט
+          - type: tile
+            entity: binary_sensor.oref_alert
+            name: צבע אדום - ראש העין
+            color: red
+            icon: mdi:rocket-launch
+            state_content: state
+
+          # דלת כניסה ומנעול חכם
+          - type: tile
+            entity: lock.home_door
+            name: דלת כניסה (נעילה)
+            color: blue
+            features:
+              - type: lock-commands
+
+          - type: tile
+            entity: binary_sensor.home_door_door_sensor
+            name: סטטוס דלת
+            color: orange
+
+          # נוכחות וסוללה - לירון
+          - type: tile
+            entity: device_tracker.iphone_17pro
+            name: לירון (מיקום)
+            icon: mdi:cellphone-iphone
+            color: purple
+            state_content:
+              - state
+              - last-changed
+
+          - type: tile
+            entity: sensor.iphone_17pro_battery_level
+            name: סוללה לירון
+            icon: mdi:battery
+            color: green
+
+          # נוכחות וסוללה - אנדרו
+          - type: tile
+            entity: device_tracker.sm_s948b
+            name: אנדרו (מיקום)
+            icon: mdi:cellphone
+            color: blue
+            state_content:
+              - state
+              - last-changed
+
+          - type: tile
+            entity: sensor.sm_s948b_battery_level
+            name: סוללה אנדרו
+            icon: mdi:battery
+            color: green
+
+          # ניטור תשתית ורשת
+          - type: tile
+            entity: sensor.system_monitor_disk_usage
+            name: שטח דיסק HAOS
+            icon: mdi:harddisk
+            color: grey
+
+      # =========================================================================
+      # עמודה 2: 🚗 גראז' ורכבים חשמליים (Garage & EV)
+      # =========================================================================
+      - type: grid
+        cards:
+          - type: heading
+            heading: 🚗 גראז' ורכבים חשמליים
+            icon: mdi:car-multiple
+
+          # טסלה מודל 3 - עם כפתור עדכון כפוי קריטי!
+          - type: heading
+            heading: Tesla Model 3
+            icon: mdi:car-electric
+
+          - type: tile
+            entity: sensor.a_t3_battery
+            name: סוללה טסלה
+            color: green
+            icon: mdi:battery-charging-100
+
+          - type: tile
+            entity: sensor.a_t3_range
+            name: טווח נסיעה מוערך
+            icon: mdi:map-marker-distance
+            color: blue
+
+          - type: tile
+            entity: binary_sensor.a_t3_charging
+            name: סטטוס טעינה
+            color: orange
+
+          # כפתור זהב! רענון כפוי לטסלה (פותר את בעיית ה-660 שניות פולינג)
+          - type: button
+            name: 🔄 רענון נתוני טסלה כפוי
+            icon: mdi:sync
+            icon_image: ""
+            tap_action:
+              action: call-service
+              service: button.press
+              target:
+                entity_id: button.a_t3_force_data_update
+            hold_action:
+              action: none
+            show_name: true
+            show_icon: true
+
+          # BYD Seal U DM-i - הרכב השני במשפחה
+          - type: heading
+            heading: BYD SEAL U DM-i
+            icon: mdi:car-hybrid
+
+          - type: tile
+            entity: sensor.byd_seal_u_dm_i_battery_level
+            name: סוללה BYD
+            color: green
+            icon: mdi:battery-charging
+
+          - type: tile
+            entity: sensor.byd_seal_u_dm_i_range
+            name: טווח נסיעה BYD
+            icon: mdi:map-marker-distance
+            color: blue
+
+          - type: tile
+            entity: binary_sensor.byd_seal_u_dm_i_locked
+            name: סטטוס נעילה BYD
+            color: purple
+
+      # =========================================================================
+      # עמודה 3: 🛋️ בקרה מרכזית, רובורוק ומדיה (Living, Vacuum & Media)
+      # =========================================================================
+      - type: grid
+        cards:
+          - type: heading
+            heading: 🛋️ בקרה מרכזית ומערכות
+            icon: mdi:sofa
+
+          # דוד שמש - עם הבלטה כתומה
+          - type: tile
+            entity: switch.dood
+            name: דוד שמש
+            color: orange
+            icon: mdi:water-boiler
+
+          # מיזוג ותריסים בסלון
+          - type: tile
+            entity: climate.minimercazi
+            name: מיני מרכזי סלון
+            features:
+              - type: climate-hvac-modes
+              - type: climate-fan-modes
+
+          - type: tile
+            entity: cover.tris_salon
+            name: תריס סלון
+            features:
+              - type: cover-open-close
+
+          - type: tile
+            entity: light.kitchen_led
+            name: תאורת מטבח LED
+            color: amber
+            features:
+              - type: light-brightness
+
+          # טלוויזיה LG בסלון
+          - type: custom:mini-media-player
+            entity: media_player.lg_webos_smart_tv
+            name: טלוויזיה סלון
+            artwork: material
+            hide:
+              power_state: false
+              source: false
+              volume: false
+
+          # שואב רובורוק S7
+          - type: heading
+            heading: רובוט שואב Roborock S7
+            icon: mdi:robot-vacuum
+
+          - type: tile
+            entity: vacuum.roborock_s7
+            name: שואב S7
+            color: blue
+            features:
+              - type: vacuum-commands
+                commands:
+                  - start_pause
+                  - stop
+                  - return_home
+
+          # חיווי מחסור במים
+          - type: tile
+            entity: binary_sensor.roborock_s7_water_shortage
+            name: חוסר במים (מגב)
+            color: red
+
+          # גריד כפתורים לניקוי חדרים ספציפיים (Selective Room Cleaning)
+          # לחיצה על כפתור שולחת את הרובוט ישירות לחדר המבוקש לפי הסגמנטים ששלפנו!
+          - type: grid
+            title: 🧹 ניקוי מהיר לפי חדר
+            columns: 3
+            square: false
+            cards:
+              - type: button
+                name: סלון 🛋️
+                icon: mdi:sofa
+                tap_action:
+                  action: call-service
+                  service: vacuum.send_command
+                  target:
+                    entity_id: vacuum.roborock_s7
+                  data:
+                    command: app_segment_clean
+                    params: [16]
+              - type: button
+                name: מטבח 🍳
+                icon: mdi:chef-hat
+                tap_action:
+                  action: call-service
+                  service: vacuum.send_command
+                  target:
+                    entity_id: vacuum.roborock_s7
+                  data:
+                    command: app_segment_clean
+                    params: [17]
+              - type: button
+                name: חדר שינה 🛏️
+                icon: mdi:bed-double
+                tap_action:
+                  action: call-service
+                  service: vacuum.send_command
+                  target:
+                    entity_id: vacuum.roborock_s7
+                  data:
+                    command: app_segment_clean
+                    params: [18]
+              - type: button
+                name: אמבטיה 🚿
+                icon: mdi:shower
+                tap_action:
+                  action: call-service
+                  service: vacuum.send_command
+                  target:
+                    entity_id: vacuum.roborock_s7
+                  data:
+                    command: app_segment_clean
+                    params: [19]
+              - type: button
+                name: מרפסת 🌅
+                icon: mdi:balcony
+                tap_action:
+                  action: call-service
+                  service: vacuum.send_command
+                  target:
+                    entity_id: vacuum.roborock_s7
+                  data:
+                    command: app_segment_clean
+                    params: [21]
+
+      # =========================================================================
+      # עמודה 4: 🛏️ חדרים, נוחות וטמפרטורה (Rooms & Heating)
+      # =========================================================================
+      - type: grid
+        cards:
+          - type: heading
+            heading: 🛏️ חדרים ונוחות
+            icon: mdi:bed
+
+          # חדר הורים
+          - type: heading
+            heading: חדר הורים
+            icon: mdi:human-male-female
+
+          - type: tile
+            entity: climate.bed_room
+            name: מזגן הורים
+            features:
+              - type: climate-hvac-modes
+
+          - type: tile
+            entity: cover.tris_bedroom
+            name: תריס הורים
+            features:
+              - type: cover-open-close
+
+          # אזור הילדים (ארי ואדם)
+          - type: heading
+            heading: חדר הילדים (ארי)
+            icon: mdi:baby-carriage
+
+          - type: tile
+            entity: climate.ari_s_room
+            name: מזגן ארי
+            features:
+              - type: climate-hvac-modes
+
+          - type: tile
+            entity: switch.ari_radiator
+            name: רדיאטור ארי
+            icon: mdi:radiator
+            color: red
