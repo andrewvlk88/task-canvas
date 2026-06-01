@@ -32,8 +32,8 @@ def get_analytics(data):
                     except Exception:
                         pass
             
-            # Stale tasks (in progress or week/today for > 48h)
-            if col_id in ["inprogress", "today", "week"]:
+            # Stale tasks (doing or week for > 48h)
+            if col_id in ["week", "doing"]:
                 updated = card.get("updated_at", card.get("created_at"))
                 if updated:
                     try:

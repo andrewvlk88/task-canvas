@@ -134,6 +134,52 @@
       .fab { bottom: 110px; }
       .card-actions { opacity: 1 !important; }
     }
+
+    /* ───── Card Modal Styling Fix ───── */
+    #card-modal {
+      background-color: rgba(8, 5, 17, 0.8) !important;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+    #card-modal > div {
+      background-color: #120d24 !important;
+      border: 1px solid #3a2f5c !important;
+      color: #FAFAFA !important;
+    }
+    #card-modal textarea {
+      background-color: #1c133a !important;
+      border: 1px solid #231b3c !important;
+      color: #FAFAFA !important;
+    }
+    #card-modal select, 
+    #card-modal input[type="text"], 
+    #card-modal input[type="date"] {
+      background-color: #120d24 !important;
+      border: 1px solid #231b3c !important;
+      color: #FAFAFA !important;
+    }
+    #card-modal textarea:focus,
+    #card-modal select:focus,
+    #card-modal input:focus {
+      border-color: #8b5cf6 !important;
+      outline: none !important;
+    }
+    #modal-ai-preview {
+      background-color: rgba(28, 19, 58, 0.6) !important;
+      border: 1px solid rgba(139, 92, 246, 0.4) !important;
+    }
+    #modal-ai-loading {
+      background-color: rgba(139, 92, 246, 0.05) !important;
+      border: 1px solid rgba(139, 92, 246, 0.1) !important;
+    }
+    .custom-modal-btn-add {
+      background-color: rgba(139, 92, 246, 0.2) !important;
+      border: 1px solid rgba(139, 92, 246, 0.3) !important;
+      color: #a78bfa !important;
+    }
+    .custom-modal-btn-add:hover {
+      background-color: rgba(139, 92, 246, 0.3) !important;
+    }
   </style>
 </head>
 <body class="overflow-x-hidden">
@@ -369,110 +415,111 @@
     </div>
 
     <!-- Scrollable Content -->
-    <div class="p-6 overflow-y-auto space-y-4 flex-1">
+    <div class="p-4 overflow-y-auto space-y-3 flex-1 text-xs">
       
       <!-- Content / Title -->
       <div>
-        <label class="block text-xs font-bold text-[#9e99b3] mb-1.5">שם המשימה</label>
-        <textarea id="modal-content" class="w-full bg-[#1c133a]/50 border border-[#231b3c] hover:border-[#3a2f5c] focus:border-[#8b5cf6] text-white p-3 rounded-xl text-sm outline-none transition resize-none h-20" placeholder="מה המשימה..."></textarea>
+        <label class="block text-xs font-bold text-[#9e99b3] mb-1">שם המשימה</label>
+        <textarea id="modal-content" class="w-full bg-[#1c133a]/50 border border-[#231b3c] hover:border-[#3a2f5c] focus:border-[#8b5cf6] text-white p-2.5 rounded-xl text-xs outline-none transition resize-none h-12" placeholder="מה המשימה..."></textarea>
       </div>
 
-      <!-- Priority & Tag Row -->
-      <div class="grid grid-cols-2 gap-4">
+      <!-- Meta Grid (Priority, Tag, Due Date, Recurring) -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div>
-          <label class="block text-xs font-bold text-[#9e99b3] mb-1.5">עדיפות</label>
-          <select id="modal-priority" class="w-full bg-[#120d24] border border-[#231b3c] text-white p-2.5 rounded-xl text-sm outline-none transition focus:border-[#8b5cf6]">
-            <option value="1">🔴 P1 (קריטי)</option>
-            <option value="2">🟠 P2 (דחוף)</option>
-            <option value="3">🟡 P3 (בינוני)</option>
-            <option value="4">🟢 P4 (נמוך)</option>
-            <option value="5">⚪ P5 (תכנון)</option>
+          <label class="block text-xs font-bold text-[#9e99b3] mb-1">עדיפות</label>
+          <select id="modal-priority" class="w-full bg-[#120d24] border border-[#231b3c] text-white p-2 rounded-xl text-xs outline-none transition focus:border-[#8b5cf6]">
+            <option value="1">🔴 P1</option>
+            <option value="2">🟠 P2</option>
+            <option value="3">🟡 P3</option>
+            <option value="4">🟢 P4</option>
+            <option value="5">⚪ P5</option>
           </select>
         </div>
         <div>
-          <label class="block text-xs font-bold text-[#9e99b3] mb-1.5">תגיות</label>
-          <div id="modal-tags-container" class="flex flex-wrap gap-1.5"></div>
-          <div class="flex gap-1 mt-1.5">
-            <input type="text" id="modal-new-tag-input" class="flex-1 bg-[#120d24] border border-[#231b3c] focus:border-[#8b5cf6] text-white p-1.5 rounded-lg text-xs outline-none transition" placeholder="תגית חדשה...">
-            <button onclick="addModalCustomTag()" class="px-2.5 bg-[#8b5cf6]/20 hover:bg-[#8b5cf6]/30 border border-[#8b5cf6]/30 text-[#a78bfa] rounded-lg text-xs font-bold transition">+</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Due Date & Recurring Row -->
-      <div class="grid grid-cols-2 gap-4">
-        <div>
-          <label class="block text-xs font-bold text-[#9e99b3] mb-1.5">תאריך יעד</label>
-          <input type="date" id="modal-due-date" class="w-full bg-[#120d24] border border-[#231b3c] text-white p-2.5 rounded-xl text-sm outline-none transition focus:border-[#8b5cf6]">
+          <label class="block text-xs font-bold text-[#9e99b3] mb-1">תאריך יעד</label>
+          <input type="date" id="modal-due-date" class="w-full bg-[#120d24] border border-[#231b3c] text-white p-2 rounded-xl text-xs outline-none transition focus:border-[#8b5cf6]">
         </div>
         <div>
-          <label class="block text-xs font-bold text-[#9e99b3] mb-1.5">מחזוריות</label>
-          <select id="modal-recurring" class="w-full bg-[#120d24] border border-[#231b3c] text-white p-2.5 rounded-xl text-sm outline-none transition focus:border-[#8b5cf6]">
-            <option value="">ללא מחזוריות</option>
+          <label class="block text-xs font-bold text-[#9e99b3] mb-1">מחזוריות</label>
+          <select id="modal-recurring" class="w-full bg-[#120d24] border border-[#231b3c] text-white p-2 rounded-xl text-xs outline-none transition focus:border-[#8b5cf6]">
+            <option value="">ללא</option>
             <option value="daily">יומי</option>
             <option value="weekly">שבועי</option>
-            <option value="weekdays">ימי חול (א-ה)</option>
+            <option value="weekdays">ימי חול</option>
             <option value="monthly">חודשי</option>
           </select>
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-[#9e99b3] mb-1">תגיות</label>
+          <div id="modal-tags-container" class="flex flex-wrap gap-1 mb-1 max-h-[22px] overflow-y-auto"></div>
+          <div class="flex gap-1">
+            <input type="text" id="modal-new-tag-input" class="flex-1 bg-[#120d24] border border-[#231b3c] focus:border-[#8b5cf6] text-white p-1 rounded-lg text-[10px] outline-none transition" placeholder="חדש...">
+            <button onclick="addModalCustomTag()" class="px-2 bg-[#8b5cf6]/20 hover:bg-[#8b5cf6]/30 border border-[#8b5cf6]/30 text-[#a78bfa] rounded-lg text-[10px] font-bold transition">+</button>
+          </div>
         </div>
       </div>
 
       <!-- Note -->
       <div>
-        <label class="block text-xs font-bold text-[#9e99b3] mb-1.5">הערות</label>
-        <textarea id="modal-note" class="w-full bg-[#1c133a]/30 border border-[#231b3c] hover:border-[#3a2f5c] focus:border-[#8b5cf6] text-white p-3 rounded-xl text-sm outline-none transition resize-none h-16" placeholder="הערות ומידע נוסף..."></textarea>
+        <label class="block text-xs font-bold text-[#9e99b3] mb-1">הערות</label>
+        <textarea id="modal-note" class="w-full bg-[#1c133a]/30 border border-[#231b3c] hover:border-[#3a2f5c] focus:border-[#8b5cf6] text-white p-2.5 rounded-xl text-xs outline-none transition resize-none h-10" placeholder="הערות ומידע נוסף..."></textarea>
       </div>
 
-      <!-- Subtasks Section -->
-      <div class="border-t border-[#231b3c] pt-4">
-        <div class="flex justify-between items-center mb-2">
-          <span class="text-xs font-bold text-[#9e99b3]">תתי-משימות</span>
-          <button onclick="triggerAiBreakdown()" class="text-xs text-[#a78bfa] hover:text-[#c4b5fd] font-bold flex items-center gap-1 transition bg-[#8b5cf6]/10 px-2.5 py-1 rounded-full border border-[#8b5cf6]/20">
-            <span>🪄 פירוק חכם (AI)</span>
-          </button>
-        </div>
+      <!-- Subtasks & Links Sections Side-by-Side (Compact Row) -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-[#231b3c] pt-2.5">
         
-        <!-- AI Loading Spinner -->
-        <div id="modal-ai-loading" class="hidden flex items-center gap-2 text-xs text-[#a78bfa] bg-[#8b5cf6]/5 p-3 rounded-xl border border-[#8b5cf6]/10 mb-2 animation-pulse">
-          <div class="cli-spinner" style="display:block"></div>
-          <span>הבינה המלאכותית מפרקת את המשימה לתתי-צעדים...</span>
-        </div>
+        <!-- Subtasks Section -->
+        <div class="flex flex-col min-h-0">
+          <div class="flex justify-between items-center mb-1.5">
+            <span class="text-xs font-bold text-[#9e99b3]">תתי-משימות</span>
+            <button onclick="triggerAiBreakdown()" class="text-[10px] text-[#a78bfa] hover:text-[#c4b5fd] font-bold flex items-center gap-1 transition bg-[#8b5cf6]/10 px-2 py-0.5 rounded-full border border-[#8b5cf6]/20">
+              <span>🪄 AI פירוק</span>
+            </button>
+          </div>
+          
+          <!-- AI Loading Spinner -->
+          <div id="modal-ai-loading" class="hidden flex items-center gap-2 text-xs text-[#a78bfa] bg-[#8b5cf6]/5 p-2 rounded-xl border border-[#8b5cf6]/10 mb-1.5 animation-pulse">
+            <div class="cli-spinner" style="display:block"></div>
+            <span>מפרק משימה...</span>
+          </div>
 
-        <!-- AI Preview Box -->
-        <div id="modal-ai-preview" class="hidden bg-[#1c133a]/60 border border-[#8b5cf6]/40 p-3 rounded-xl mb-3 space-y-2 text-right">
-          <span class="block text-[11px] font-bold text-[#a78bfa] mb-1">תתי-משימות מוצעות (ערוך או בטל סימון):</span>
-          <div id="modal-ai-preview-list" class="space-y-1.5"></div>
-          <div class="flex justify-end gap-2 pt-1">
-            <button onclick="cancelAiPreview()" class="px-2.5 py-1 text-xs border border-[#231b3c] rounded-lg text-gray-400 hover:text-white transition">ביטול</button>
-            <button onclick="approveAiPreview()" class="px-2.5 py-1 text-xs bg-[#8b5cf6] text-white rounded-lg hover:bg-[#a78bfa] transition font-bold">אשר והוסף ✓</button>
+          <!-- AI Preview Box -->
+          <div id="modal-ai-preview" class="hidden bg-[#1c133a]/60 border border-[#8b5cf6]/40 p-2.5 rounded-xl mb-2 space-y-1.5 text-right">
+            <span class="block text-[10px] font-bold text-[#a78bfa] mb-0.5">הצעות (ערוך/בטל):</span>
+            <div id="modal-ai-preview-list" class="space-y-1 max-h-[100px] overflow-y-auto"></div>
+            <div class="flex justify-end gap-1.5 pt-0.5">
+              <button onclick="cancelAiPreview()" class="px-2 py-0.5 text-[10px] border border-[#231b3c] rounded-md text-gray-400 hover:text-white transition">בטל</button>
+              <button onclick="approveAiPreview()" class="px-2 py-0.5 text-[10px] bg-[#8b5cf6] text-white rounded-md hover:bg-[#a78bfa] transition font-bold">אשר ✓</button>
+            </div>
+          </div>
+
+          <!-- Subtasks list -->
+          <div id="modal-subtasks-list" class="space-y-1.5 max-h-[100px] overflow-y-auto pr-1 flex-1"></div>
+
+          <!-- Add subtask input -->
+          <div class="flex gap-1.5 mt-1.5">
+            <input type="text" id="modal-new-subtask" class="flex-1 bg-[#120d24] border border-[#231b3c] focus:border-[#8b5cf6] text-white p-1.5 rounded-xl text-xs outline-none transition" placeholder="תת-משימה חדשה...">
+            <button onclick="addModalSubtask()" class="px-2.5 bg-[#8b5cf6]/20 hover:bg-[#8b5cf6]/30 border border-[#8b5cf6]/30 text-[#a78bfa] rounded-xl text-xs font-bold transition">+</button>
           </div>
         </div>
 
-        <!-- Subtasks list -->
-        <div id="modal-subtasks-list" class="space-y-2 max-h-[160px] overflow-y-auto pr-1"></div>
-
-        <!-- Add subtask input -->
-        <div class="flex gap-2 mt-2">
-          <input type="text" id="modal-new-subtask" class="flex-1 bg-[#120d24] border border-[#231b3c] focus:border-[#8b5cf6] text-white p-2 rounded-xl text-sm outline-none transition" placeholder="הוסף תת-משימה...">
-          <button onclick="addModalSubtask()" class="px-3 bg-[#8b5cf6]/20 hover:bg-[#8b5cf6]/30 border border-[#8b5cf6]/30 text-[#a78bfa] rounded-xl text-sm font-bold transition">+</button>
+        <!-- Links Section -->
+        <div class="border-t md:border-t-0 md:border-r border-[#231b3c] pt-2.5 md:pt-0 md:pr-4 flex flex-col min-h-0">
+          <label class="block text-xs font-bold text-[#9e99b3] mb-1.5">קישורים</label>
+          <div id="modal-links-list" class="space-y-1 mb-1.5 max-h-[100px] overflow-y-auto flex-1"></div>
+          <div class="flex gap-1.5">
+            <input type="text" id="modal-new-link-title" class="w-1/3 bg-[#120d24] border border-[#231b3c] focus:border-[#8b5cf6] text-white p-1.5 rounded-xl text-xs outline-none transition" placeholder="כותרת...">
+            <input type="text" id="modal-new-link-url" class="flex-1 bg-[#120d24] border border-[#231b3c] focus:border-[#8b5cf6] text-white p-1.5 rounded-xl text-xs outline-none transition" placeholder="URL...">
+            <button onclick="addModalLink()" class="px-2.5 bg-[#8b5cf6]/20 hover:bg-[#8b5cf6]/30 border border-[#8b5cf6]/30 text-[#a78bfa] rounded-xl text-xs font-bold transition">הוסף</button>
+          </div>
         </div>
-      </div>
 
-      <!-- Links Section -->
-      <div class="border-t border-[#231b3c] pt-4">
-        <label class="block text-xs font-bold text-[#9e99b3] mb-1.5">קישורים</label>
-        <div id="modal-links-list" class="space-y-1.5 mb-2 max-h-[100px] overflow-y-auto"></div>
-        <div class="flex gap-2">
-          <input type="text" id="modal-new-link-title" class="w-1/3 bg-[#120d24] border border-[#231b3c] focus:border-[#8b5cf6] text-white p-2 rounded-xl text-xs outline-none transition" placeholder="כותרת...">
-          <input type="text" id="modal-new-link-url" class="flex-1 bg-[#120d24] border border-[#231b3c] focus:border-[#8b5cf6] text-white p-2 rounded-xl text-xs outline-none transition" placeholder="כתובת URL...">
-          <button onclick="addModalLink()" class="px-3 bg-[#8b5cf6]/20 hover:bg-[#8b5cf6]/30 border border-[#8b5cf6]/30 text-[#a78bfa] rounded-xl text-xs font-bold transition">הוסף</button>
-        </div>
       </div>
 
     </div>
 
     <!-- Footer -->
-    <div class="px-6 py-4 bg-black/20 border-t border-[#231b3c] flex justify-end gap-2">
+    <div class="px-4 py-2.5 bg-black/20 border-t border-[#231b3c] flex justify-end gap-1.5">
       <button class="px-4 py-2 border border-[#231b3c] rounded-xl text-sm text-gray-400 hover:text-white transition" onclick="closeCardModal()">ביטול</button>
       <button class="px-5 py-2 bg-[#8b5cf6] hover:bg-[#a78bfa] text-white font-bold rounded-xl text-sm transition shadow-lg shadow-[#8b5cf6]/20" onclick="saveCardModal()">שמור שינויים</button>
     </div>
@@ -527,7 +574,7 @@
 const API = '/api';
 let boardData = { columns: [] };
 
-// Intercept relative API calls to include credentials for basic-auth
+// Intercept relative API calls to include credentials for basic-auth and CSRF protection
 const _origFetch = window.fetch;
 window.fetch = function(url, ...rest) {
   let opts = rest[0] || {};
@@ -537,6 +584,10 @@ window.fetch = function(url, ...rest) {
     if (!opts.headers) { opts.headers = {}; }
     if (typeof opts.headers === 'object' && !(opts.headers instanceof Headers)) {
       opts.headers['Authorization'] = '{{ auth_header }}';
+      opts.headers['X-Requested-With'] = 'XMLHttpRequest';
+    } else if (opts.headers instanceof Headers) {
+      opts.headers.set('Authorization', '{{ auth_header }}');
+      opts.headers.set('X-Requested-With', 'XMLHttpRequest');
     }
   }
   return _origFetch(url, opts);

@@ -227,17 +227,23 @@ def delete_card(card_id: str) -> None:
 def move_card_to_column(card_id: str, target_column: str) -> None:
     """Move a card to a different column, reordering positions."""
     conn = get_db()
-    conn.execute("UPDATE tasks SET column_id = ?, position = -1, updated_at = ? WHERE id = ?",
-                 (target_column, datetime.now().isoformat(), card_id))
-    cur = conn.execute(
-        "SELECT COALESCE(MAX(position), -1) + 1 FROM tasks WHERE column_id = ? AND id != ?",
-        (target_column, card_id),
-    )
-    new_pos = cur.fetchone()[0]
-    conn.execute("UPDATE tasks SET position = ? WHERE id = ?", (new_pos, card_id))
-    _audit(conn, card_id, "move", {"column_id": "?"}, {"column_id": target_column})
-    conn.commit()
-    conn.close()
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        conn.execute("UPDATE tasks SET column_id = ?, position = -1, updated_at = ? WHERE id = ?",
+                     (target_column, datetime.now().isoformat(), card_id))
+        cur = conn.execute(
+            "SELECT COALESCE(MAX(position), -1) + 1 FROM tasks WHERE column_id = ? AND id != ?",
+            (target_column, card_id),
+        )
+        new_pos = cur.fetchone()[0]
+        conn.execute("UPDATE tasks SET position = ? WHERE id = ?", (new_pos, card_id))
+        _audit(conn, card_id, "move", {"column_id": "?"}, {"column_id": target_column})
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 
 def decay_priorities() -> int:
@@ -319,48 +325,53 @@ def migrate_from_json(json_path: Path) -> int:
 def reorder_card(card_id: str, target_column: str, target_position: int) -> None:
     """Move a card to a specific position in target_column, reordering both source and target columns."""
     conn = get_db()
-    # 1. Get current column of the card
-    row = conn.execute("SELECT column_id, position FROM tasks WHERE id = ?", (card_id,)).fetchone()
-    if not row:
-        conn.close()
-        return
-    source_column = row["column_id"]
-    old_pos = row["position"]
-    
-    # 2. Get all other non-archived cards in target column, sorted by position
-    target_cards = conn.execute(
-        "SELECT id FROM tasks WHERE column_id = ? AND archived = 0 AND id != ? ORDER BY position",
-        (target_column, card_id)
-    ).fetchall()
-    target_card_ids = [r["id"] for r in target_cards]
-    
-    # Insert card_id at target_position
-    if target_position < 0:
-        target_position = 0
-    if target_position > len(target_card_ids):
-        target_position = len(target_card_ids)
-    target_card_ids.insert(target_position, card_id)
-    
-    # Update positions in target column
-    now = datetime.now().isoformat()
-    for idx, cid in enumerate(target_card_ids):
-        conn.execute(
-            "UPDATE tasks SET column_id = ?, position = ?, updated_at = ? WHERE id = ?",
-            (target_column, idx, now, cid)
-        )
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        # 1. Get current column of the card
+        row = conn.execute("SELECT column_id, position FROM tasks WHERE id = ?", (card_id,)).fetchone()
+        if not row:
+            return
+        source_column = row["column_id"]
+        old_pos = row["position"]
         
-    # 3. If source and target are different, also re-index source column to prevent gaps
-    if source_column != target_column:
-        source_cards = conn.execute(
+        # 2. Get all other non-archived cards in target column, sorted by position
+        target_cards = conn.execute(
             "SELECT id FROM tasks WHERE column_id = ? AND archived = 0 AND id != ? ORDER BY position",
-            (source_column, card_id)
+            (target_column, card_id)
         ).fetchall()
-        for idx, r in enumerate(source_cards):
+        target_card_ids = [r["id"] for r in target_cards]
+        
+        # Insert card_id at target_position
+        if target_position < 0:
+            target_position = 0
+        if target_position > len(target_card_ids):
+            target_position = len(target_card_ids)
+        target_card_ids.insert(target_position, card_id)
+        
+        # Update positions in target column
+        now = datetime.now().isoformat()
+        for idx, cid in enumerate(target_card_ids):
             conn.execute(
-                "UPDATE tasks SET position = ?, updated_at = ? WHERE id = ?",
-                (idx, now, r["id"])
+                "UPDATE tasks SET column_id = ?, position = ?, updated_at = ? WHERE id = ?",
+                (target_column, idx, now, cid)
             )
             
-    _audit(conn, card_id, "move", {"column_id": source_column, "position": old_pos}, {"column_id": target_column, "position": target_position})
-    conn.commit()
-    conn.close()
+        # 3. If source and target are different, also re-index source column to prevent gaps
+        if source_column != target_column:
+            source_cards = conn.execute(
+                "SELECT id FROM tasks WHERE column_id = ? AND archived = 0 AND id != ? ORDER BY position",
+                (source_column, card_id)
+            ).fetchall()
+            for idx, r in enumerate(source_cards):
+                conn.execute(
+                    "UPDATE tasks SET position = ?, updated_at = ? WHERE id = ?",
+                    (idx, now, r["id"])
+                )
+                
+        _audit(conn, card_id, "move", {"column_id": source_column, "position": old_pos}, {"column_id": target_column, "position": target_position})
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()

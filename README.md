@@ -1,6 +1,6 @@
 # Task Canvas — Andrew's Personal Kanban Board
 
-5-column task management board (RTL) with subtasks, priorities, links, due dates, recurring tasks, and a modern mobile-first UI.
+4-column task management board (RTL) with subtasks, priorities, links, due dates, recurring tasks, and a modern mobile-first UI.
 
 ## Architecture
 
@@ -8,8 +8,7 @@
 |-----------|------|-------------|
 | Flask server | `app.py` | REST API + static file serving |
 | Database layer | `db.py` | SQLite storage with audit logging |
-| Frontend (desktop) | `templates/kanban.html` | Aether Edition 5-column Kanban |
-| Frontend (mobile) | `templates/index.html` | Mobile-first daily view |
+| Frontend (board) | `templates/kanban.html` | Aether Premium 4-column Kanban & mobile daily views |
 | Analytics | `analytics_utils.py` | Task metrics and reporting |
 
 ## Storage — SQLite (`tasks.db`)
@@ -30,11 +29,13 @@ CREATE TABLE tasks (
     column_id TEXT NOT NULL DEFAULT 'backlog',
     content TEXT NOT NULL,
     tag TEXT DEFAULT '',
+    tags TEXT DEFAULT '[]',        -- JSON array of tags
     priority INTEGER DEFAULT 3,
     subtasks TEXT DEFAULT '[]',    -- JSON array
     links TEXT DEFAULT '[]',       -- JSON array of {url, title}
     due_date TEXT,
     recurring TEXT,
+    last_recurring_check TEXT,
     note TEXT DEFAULT '',
     archived INTEGER DEFAULT 0,
     decayed INTEGER DEFAULT 0,
@@ -110,7 +111,7 @@ The server also exposes a CLI command bar at `/api/tt` for LLM-powered smart tri
 
 - **Local:** Flask binds `127.0.0.1:5050`
 - **External:** Cloudflare Tunnel → `andrew.avolkov.click`
-- **Auth:** HTTP Basic Auth (env vars `CANVAS_USER` / `CANVAS_PASS`, defaults: `andrew` / `hermes666`)
+- **Auth:** HTTP Basic Auth (env vars `CANVAS_USER` / `CANVAS_PASS` configured in `.env`)
 
 ## Tech Stack
 
