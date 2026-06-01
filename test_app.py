@@ -3,6 +3,12 @@ import pytest
 from pathlib import Path
 from datetime import datetime
 
+# Set dummy env vars for CI collection/testing so app.py doesn't sys.exit(1)
+if not os.environ.get("CANVAS_USER"):
+    os.environ["CANVAS_USER"] = "test_user"
+if not os.environ.get("CANVAS_PASS"):
+    os.environ["CANVAS_PASS"] = "test_pass"
+
 # Redirect database path to a test-isolated location
 import db
 TEST_DB = Path("/tmp/test_tasks.db")
